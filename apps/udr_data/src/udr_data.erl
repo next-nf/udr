@@ -20,7 +20,8 @@
 
 -export([put_authentication_subscription/2, get_authentication_subscription/1,
          advance_sqn/2, repair_sqn/2,
-         put_subscription_data/2, get_am_subscription/1, get_sm_subscription/1,
+         put_subscription_data/2, get_subscription_data/1,
+         get_am_subscription/1, get_sm_subscription/1,
          get_3gpp_access_registration/1, put_3gpp_access_registration/2,
          delete_3gpp_access_registration/1]).
 
@@ -73,7 +74,7 @@ advance_sqn(Imsi, N, Tries) ->
             end
     end.
 
--doc "Repair the stored SQN to SqnMs after an AUTS resync (CAS, retried on conflict).".
+-doc "Repair the stored SQN to the supplied value after an AUTS resync (CAS, retried on conflict). Callers pass SQN_MS + 1 (the next SQN to allocate).".
 -spec repair_sqn(imsi(), non_neg_integer()) ->
     ok | {error, not_found} | {error, cas_exhausted}.
 repair_sqn(Imsi, SqnMs) ->
@@ -97,6 +98,14 @@ repair_sqn(Imsi, SqnMs, Tries) ->
 -spec put_subscription_data(imsi(), resource()) -> ok | {error, term()}.
 put_subscription_data(Imsi, Profile) ->
     udr_db:put(?SUB, Imsi, Profile).
+
+-doc "The full EPS subscription profile (AM + SM) for an IMSI, in one read.".
+-spec get_subscription_data(imsi()) -> {ok, resource()} | {error, not_found}.
+get_subscription_data(Imsi) ->
+    case udr_db:get(?SUB, Imsi) of
+        {ok, Doc}              -> {ok, strip_meta(Doc)};
+        {error, not_found} = E -> E
+    end.
 
 -doc "Access-and-Mobility subscription data (profile minus the APN config profile).".
 -spec get_am_subscription(imsi()) -> {ok, resource()} | {error, not_found}.

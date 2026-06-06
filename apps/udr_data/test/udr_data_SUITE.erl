@@ -22,14 +22,16 @@
          advance_sqn_reserves_block/1, advance_sqn_unknown_imsi/1,
          repair_sqn_sets_stored/1, repair_sqn_unknown_imsi/1, concurrent_advance_sqn/1,
          get_am_subscription/1, get_sm_subscription/1, get_am_subscription_unknown_imsi/1,
-         registration_put_then_get/1, registration_delete/1]).
+         registration_put_then_get/1, registration_delete/1,
+         get_subscription_data/1, get_subscription_data_unknown_imsi/1]).
 
 all() ->
     [put_then_get, get_unknown_imsi,
      advance_sqn_reserves_block, advance_sqn_unknown_imsi,
      repair_sqn_sets_stored, repair_sqn_unknown_imsi, concurrent_advance_sqn,
      get_am_subscription, get_sm_subscription, get_am_subscription_unknown_imsi,
-     registration_put_then_get, registration_delete].
+     registration_put_then_get, registration_delete,
+     get_subscription_data, get_subscription_data_unknown_imsi].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -141,4 +143,21 @@ registration_delete(_Config) ->
     ok = udr_data:put_3gpp_access_registration(<<"i">>, #{<<"serving_mme_host">> => <<"m">>}),
     ok = udr_data:delete_3gpp_access_registration(<<"i">>),
     ?assertEqual({error, not_registered}, udr_data:get_3gpp_access_registration(<<"i">>)),
+    ok.
+
+%% get_subscription_data
+
+get_subscription_data(_Config) ->
+    Profile = #{<<"msisdn">> => <<"49100">>,
+                <<"ambr">> => #{<<"ul">> => 1, <<"dl">> => 2},
+                <<"apn_config_profile">> => #{<<"context_id">> => 1}},
+    ok = udr_data:put_subscription_data(<<"i">>, Profile),
+    {ok, Got} = udr_data:get_subscription_data(<<"i">>),
+    ?assertEqual(<<"49100">>, maps:get(<<"msisdn">>, Got)),
+    ?assertEqual(#{<<"context_id">> => 1}, maps:get(<<"apn_config_profile">>, Got)),
+    ?assertEqual(error, maps:find(<<"version">>, Got)),
+    ok.
+
+get_subscription_data_unknown_imsi(_Config) ->
+    ?assertEqual({error, not_found}, udr_data:get_subscription_data(<<"nope">>)),
     ok.
