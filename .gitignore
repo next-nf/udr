@@ -21,3 +21,7 @@ rebar3.crashdump
 
 # Design documents are kept locally but out of the git tree (project decision)
 docs/
+
+# Generated documentation (rebar3 ex_doc output)
+doc/
+apps/*/doc/
