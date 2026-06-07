@@ -19,8 +19,10 @@
            "maps with binary keys; the internal `version` CAS token is hidden from callers.".
 
 -export([put_authentication_subscription/2, get_authentication_subscription/1,
+         delete_authentication_subscription/1,
          advance_sqn/2, repair_sqn/2,
          put_subscription_data/2, get_subscription_data/1,
+         delete_subscription_data/1,
          get_am_subscription/1, get_sm_subscription/1,
          get_3gpp_access_registration/1, put_3gpp_access_registration/2,
          delete_3gpp_access_registration/1]).
@@ -46,6 +48,11 @@ get_authentication_subscription(Imsi) ->
         {ok, Doc}              -> {ok, strip_meta(Doc)};
         {error, not_found} = E -> E
     end.
+
+-doc "Delete the authentication subscription for an IMSI.".
+-spec delete_authentication_subscription(imsi()) -> ok | {error, term()}.
+delete_authentication_subscription(Imsi) ->
+    udr_db:delete(?AUTH, Imsi).
 
 %% Remove udr_db-internal storage keys from a returned domain resource.
 -spec strip_meta(resource()) -> resource().
@@ -106,6 +113,11 @@ get_subscription_data(Imsi) ->
         {ok, Doc}              -> {ok, strip_meta(Doc)};
         {error, not_found} = E -> E
     end.
+
+-doc "Delete the EPS subscription profile for an IMSI.".
+-spec delete_subscription_data(imsi()) -> ok | {error, term()}.
+delete_subscription_data(Imsi) ->
+    udr_db:delete(?SUB, Imsi).
 
 -doc "Access-and-Mobility subscription data (profile minus the APN config profile).".
 -spec get_am_subscription(imsi()) -> {ok, resource()} | {error, not_found}.

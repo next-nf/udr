@@ -23,7 +23,8 @@
          repair_sqn_sets_stored/1, repair_sqn_unknown_imsi/1, concurrent_advance_sqn/1,
          get_am_subscription/1, get_sm_subscription/1, get_am_subscription_unknown_imsi/1,
          registration_put_then_get/1, registration_delete/1,
-         get_subscription_data/1, get_subscription_data_unknown_imsi/1]).
+         get_subscription_data/1, get_subscription_data_unknown_imsi/1,
+         delete_authentication_subscription/1, delete_subscription_data/1]).
 
 all() ->
     [put_then_get, get_unknown_imsi,
@@ -31,7 +32,8 @@ all() ->
      repair_sqn_sets_stored, repair_sqn_unknown_imsi, concurrent_advance_sqn,
      get_am_subscription, get_sm_subscription, get_am_subscription_unknown_imsi,
      registration_put_then_get, registration_delete,
-     get_subscription_data, get_subscription_data_unknown_imsi].
+     get_subscription_data, get_subscription_data_unknown_imsi,
+     delete_authentication_subscription, delete_subscription_data].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -160,4 +162,18 @@ get_subscription_data(_Config) ->
 
 get_subscription_data_unknown_imsi(_Config) ->
     ?assertEqual({error, not_found}, udr_data:get_subscription_data(<<"nope">>)),
+    ok.
+
+%% delete_subscriber_data
+
+delete_authentication_subscription(_Config) ->
+    ok = udr_data:put_authentication_subscription(<<"i">>, #{<<"ki">> => <<"k">>}),
+    ok = udr_data:delete_authentication_subscription(<<"i">>),
+    ?assertEqual({error, not_found}, udr_data:get_authentication_subscription(<<"i">>)),
+    ok.
+
+delete_subscription_data(_Config) ->
+    ok = udr_data:put_subscription_data(<<"i">>, #{<<"msisdn">> => <<"49">>}),
+    ok = udr_data:delete_subscription_data(<<"i">>),
+    ?assertEqual({error, not_found}, udr_data:get_subscription_data(<<"i">>)),
     ok.

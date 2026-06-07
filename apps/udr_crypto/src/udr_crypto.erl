@@ -28,6 +28,7 @@
 -export_record([eps_av]).
 
 -export([eps_vector/7, generate_eps_vectors/7, verify_resync/5, opc/3]).
+-export_type([algo/0]).
 
 -type algo() :: milenage.
 -type eps_av() :: term().  %% native-record value; term() keeps dialyzer happy (experimental feature)
