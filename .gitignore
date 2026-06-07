@@ -25,3 +25,8 @@ docs/
 # Generated documentation (rebar3 ex_doc output)
 doc/
 apps/*/doc/
+
+# Generated Diameter dictionary .erl/.hrl (produced at build time by OTP's
+# diameter_make via the pre_hooks in apps/udr_diameter/rebar.config)
+apps/*/src/diameter_*.erl
+apps/*/include/diameter_*.hrl

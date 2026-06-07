@@ -1,0 +1,198 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+;
+; Copyright (C) 2026 Nathan Foster <next-nf@proton.me>
+;
+; This program is free software: you can redistribute it and/or modify
+; it under the terms of the GNU Affero General Public License as
+; published by the Free Software Foundation, either version 3 of the
+; License, or (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU Affero General Public License for more details.
+;
+; You should have received a copy of the GNU Affero General Public License
+; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+@id     16777251
+@name   diameter_3gpp_s6a
+@prefix s6a
+@vendor 10415 3GPP
+
+@inherits diameter_gen_base_rfc6733
+
+@avp_types
+   Subscription-Data                          1400  Grouped      MV
+   ULR-Flags                                  1405  Unsigned32   MV
+   ULA-Flags                                  1406  Unsigned32   MV
+   Visited-PLMN-Id                            1407  OctetString  MV
+   Requested-EUTRAN-Authentication-Info       1408  Grouped      MV
+   Number-Of-Requested-Vectors                1410  Unsigned32   MV
+   Re-Synchronization-Info                    1411  OctetString  MV
+   Immediate-Response-Preferred               1412  Unsigned32   MV
+   Authentication-Info                        1413  Grouped      MV
+   E-UTRAN-Vector                             1414  Grouped      MV
+   Item-Number                                1419  Unsigned32   MV
+   Cancellation-Type                          1420  Unsigned32   MV
+   Context-Identifier                         1423  Unsigned32   MV
+   Subscriber-Status                          1424  Unsigned32   MV
+   All-APN-Configurations-Included-Indicator  1428  Unsigned32   MV
+   APN-Configuration-Profile                  1429  Grouped      MV
+   APN-Configuration                          1430  Grouped      MV
+   AMBR                                       1435  Grouped      MV
+   PUA-Flags                                  1442  Unsigned32   MV
+   RAND                                       1447  OctetString  MV
+   XRES                                       1448  OctetString  MV
+   AUTN                                       1449  OctetString  MV
+   KASME                                      1450  OctetString  MV
+   PUR-Flags                                  1635  Unsigned32   MV
+   RAT-Type                                   1032  Unsigned32   MV
+   PDN-Type                                   1456  Unsigned32   MV
+   Service-Selection                          493   UTF8String   M
+   Max-Requested-Bandwidth-UL                 516   Unsigned32   MV
+   Max-Requested-Bandwidth-DL                 515   Unsigned32   MV
+
+@grouped
+   Requested-EUTRAN-Authentication-Info ::= < AVP Header: 1408 10415 >
+        [ Number-Of-Requested-Vectors ]
+        [ Immediate-Response-Preferred ]
+        [ Re-Synchronization-Info ]
+
+   Authentication-Info ::= < AVP Header: 1413 10415 >
+      * [ E-UTRAN-Vector ]
+
+   E-UTRAN-Vector ::= < AVP Header: 1414 10415 >
+        { RAND }
+        { XRES }
+        { AUTN }
+        { KASME }
+        [ Item-Number ]
+
+   AMBR ::= < AVP Header: 1435 10415 >
+        { Max-Requested-Bandwidth-UL }
+        { Max-Requested-Bandwidth-DL }
+
+   APN-Configuration ::= < AVP Header: 1430 10415 >
+        { Context-Identifier }
+        { PDN-Type }
+        { Service-Selection }
+        [ AMBR ]
+
+   APN-Configuration-Profile ::= < AVP Header: 1429 10415 >
+        { Context-Identifier }
+        [ All-APN-Configurations-Included-Indicator ]
+      * [ APN-Configuration ]
+
+   Subscription-Data ::= < AVP Header: 1400 10415 >
+        [ Subscriber-Status ]
+        [ AMBR ]
+        [ APN-Configuration-Profile ]
+
+@messages
+   AIR ::= < Diameter Header: 318, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Realm }
+        { User-Name }
+        { Visited-PLMN-Id }
+        [ Vendor-Specific-Application-Id ]
+        [ Destination-Host ]
+        [ Requested-EUTRAN-Authentication-Info ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   AIA ::= < Diameter Header: 318, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+        [ Authentication-Info ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   ULR ::= < Diameter Header: 316, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Realm }
+        { User-Name }
+        { RAT-Type }
+        { ULR-Flags }
+        { Visited-PLMN-Id }
+        [ Vendor-Specific-Application-Id ]
+        [ Destination-Host ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   ULA ::= < Diameter Header: 316, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+        [ ULA-Flags ]
+        [ Subscription-Data ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   PUR ::= < Diameter Header: 321, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Realm }
+        { User-Name }
+        [ Vendor-Specific-Application-Id ]
+        [ Destination-Host ]
+        [ PUR-Flags ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   PUA ::= < Diameter Header: 321, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+        [ PUA-Flags ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   CLR ::= < Diameter Header: 317, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Host }
+        { Destination-Realm }
+        { User-Name }
+        { Cancellation-Type }
+        [ Vendor-Specific-Application-Id ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   CLA ::= < Diameter Header: 317, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
