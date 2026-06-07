@@ -14,18 +14,19 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
-{application, udr_diameter, [
-    {description, "S6a Diameter wire layer for the HSS"},
-    {vsn, "0.1.0"},
-    {mod, {udr_diameter_app, []}},
-    {registered, [udr_diameter_sup]},
-    {applications, [kernel, stdlib, diameter, udr_hss, opentelemetry_api, udr_otel]},
-    {env, [
-        {origin_host,  "hss.epc.mnc001.mcc001.3gppnetwork.org"},
-        {origin_realm, "epc.mnc001.mcc001.3gppnetwork.org"},
-        {listen, [{tcp, {127,0,0,1}, 3868}]}
-    ]},
-    {modules, []},
-    {licenses, ["AGPL-3.0-or-later"]},
-    {links, []}
-]}.
+
+-module(udr_otel_sup).
+-moduledoc "Top-level supervisor for the `udr_otel` app (currently no children).".
+
+-behaviour(supervisor).
+
+-export([start_link/0]).
+-export([init/1]).
+
+-define(SERVER, ?MODULE).
+
+start_link() ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+init([]) ->
+    {ok, {#{strategy => one_for_one, intensity => 5, period => 10}, []}}.

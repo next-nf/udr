@@ -20,6 +20,8 @@
            "executes the cancel_location effect by originating a CLR (fire-and-forget).".
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("opentelemetry_api/include/otel_tracer.hrl").
+-include_lib("opentelemetry_api/include/opentelemetry.hrl").
 
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
@@ -58,17 +60,38 @@ handle_error(_Reason, _Req, _Svc, _Peer) -> ok.
     {reply, list()} | {answer_message, pos_integer()} | discard.
 handle_request(#diameter_packet{errors = [_ | _]}, _Svc, _Peer) ->
     {answer_message, 5005};   %% DIAMETER_MISSING_AVP
-handle_request(#diameter_packet{msg = ['AIR' | Avps]}, _Svc, {_Ref, Caps}) ->
-    Result = udr_hss:handle_air(udr_diameter_codec:decode_air(Avps)),
-    reply('AIA', Avps, Caps, udr_diameter_codec:encode_air_answer(strip_effects(Result)), effects(Result));
-handle_request(#diameter_packet{msg = ['ULR' | Avps]}, _Svc, {_Ref, Caps}) ->
-    Result = udr_hss:handle_ulr(udr_diameter_codec:decode_ulr(Avps)),
-    reply('ULA', Avps, Caps, udr_diameter_codec:encode_ulr_answer(strip_effects(Result)), effects(Result));
-handle_request(#diameter_packet{msg = ['PUR' | Avps]}, _Svc, {_Ref, Caps}) ->
-    Result = udr_hss:handle_pur(udr_diameter_codec:decode_pur(Avps)),
-    reply('PUA', Avps, Caps, udr_diameter_codec:encode_pua_answer(strip_effects(Result)), effects(Result));
+handle_request(#diameter_packet{msg = [Cmd | Avps]}, _Svc, {_Ref, Caps})
+  when Cmd =:= 'AIR'; Cmd =:= 'ULR'; Cmd =:= 'PUR' ->
+    Start = erlang:monotonic_time(),
+    ?with_span(span_name(Cmd), #{kind => ?SPAN_KIND_SERVER},
+        fun(_) ->
+            ?set_attributes(#{'s6a.command' => Cmd,
+                              's6a.imsi' => maps:get('User-Name', Avps, undefined)}),
+            {Reply, Result} = dispatch(Cmd, Avps, Caps),
+            Class = result_class(Result),
+            ?set_attributes(#{'s6a.result' => Class}),
+            udr_otel:record_s6a(Cmd, Class, erlang:monotonic_time() - Start),
+            Reply
+        end);
 handle_request(_Pkt, _Svc, _Peer) ->
     discard.
+
+span_name('AIR') -> <<"s6a.AIR">>;
+span_name('ULR') -> <<"s6a.ULR">>;
+span_name('PUR') -> <<"s6a.PUR">>.
+
+dispatch('AIR', Avps, Caps) ->
+    R = udr_hss:handle_air(udr_diameter_codec:decode_air(Avps)),
+    {reply('AIA', Avps, Caps, udr_diameter_codec:encode_air_answer(strip_effects(R)), effects(R)), R};
+dispatch('ULR', Avps, Caps) ->
+    R = udr_hss:handle_ulr(udr_diameter_codec:decode_ulr(Avps)),
+    {reply('ULA', Avps, Caps, udr_diameter_codec:encode_ulr_answer(strip_effects(R)), effects(R)), R};
+dispatch('PUR', Avps, Caps) ->
+    R = udr_hss:handle_pur(udr_diameter_codec:decode_pur(Avps)),
+    {reply('PUA', Avps, Caps, udr_diameter_codec:encode_pua_answer(strip_effects(R)), effects(R)), R}.
+
+result_class({ok, _, _})      -> success;
+result_class({error, Reason}) -> Reason.
 
 %% udr_hss returns {ok, Answer, Effects}; encoders take {ok, Answer} | {error, _}.
 strip_effects({ok, Answer, _Effects}) -> {ok, Answer};
@@ -87,6 +110,11 @@ reply(Name, #{'Session-Id' := Sid}, Caps, AnswerAvps, Effects) ->
 run_effects(Effects) -> lists:foreach(fun run_effect/1, Effects).
 
 run_effect({cancel_location, Info}) ->
+    %% Capture the current OTel context so a future child span can link the CLR
+    %% to its originating ULR. The CLR uses diameter:call [detach], so it runs
+    %% out of band; the full child span is future work.
+    Ctx = otel_ctx:get_current(),
+    _ = Ctx,
     {ok, OH} = application:get_env(udr_diameter, origin_host),
     {ok, OR} = application:get_env(udr_diameter, origin_realm),
     Clr0 = udr_diameter_codec:clr_request(Info),

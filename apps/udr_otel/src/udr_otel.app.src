@@ -14,17 +14,18 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
-{application, udr_diameter, [
-    {description, "S6a Diameter wire layer for the HSS"},
+
+{application, udr_otel, [
+    {description, "OpenTelemetry setup: metric instruments + a span test exporter"},
     {vsn, "0.1.0"},
-    {mod, {udr_diameter_app, []}},
-    {registered, [udr_diameter_sup]},
-    {applications, [kernel, stdlib, diameter, udr_hss, opentelemetry_api, udr_otel]},
-    {env, [
-        {origin_host,  "hss.epc.mnc001.mcc001.3gppnetwork.org"},
-        {origin_realm, "epc.mnc001.mcc001.3gppnetwork.org"},
-        {listen, [{tcp, {127,0,0,1}, 3868}]}
-    ]},
+    {registered, [udr_otel_sup]},
+    {mod, {udr_otel_app, []}},
+    %% Note: opentelemetry_exporter is a release-level concern (started via the relx
+    %% release list before the SDK for OTLP deployments), not something udr_otel calls
+    %% directly, so it is intentionally not listed here.
+    {applications, [kernel, stdlib, opentelemetry_api,
+                    opentelemetry, opentelemetry_experimental, opentelemetry_api_experimental]},
+    {env, []},
     {modules, []},
     {licenses, ["AGPL-3.0-or-later"]},
     {links, []}

@@ -32,7 +32,8 @@ start(_StartType, _StartArgs) ->
         ]}
     ]),
     {ok, _} = cowboy:start_clear(udr_sbi_listener, [{port, Port}, {ip, Ip}],
-                                 #{env => #{dispatch => Dispatch}}),
+                                 #{env => #{dispatch => Dispatch},
+                                   stream_handlers => [opentelemetry_cowboy_h, cowboy_stream_h]}),
     udr_sbi_sup:start_link().
 
 -spec stop(term()) -> ok.
