@@ -19,11 +19,12 @@ Document *what* the operator configures and does, and *how to confirm it worked*
 
 ## 2. Document types
 
-Each operator document is one of four types, and uses the matching template in [`templates/`](templates/):
+Each operator document is one of five types, and uses the matching template in [`templates/`](templates/):
 
 | Type | Answers | Template |
 | --- | --- | --- |
 | Configuration Reference | "What does this parameter do, and what may I set it to?" | `configuration-reference.md` |
+| Interface Reference | "What is the contract of this interface?" | `interface-reference.md` |
 | Operations Runbook | "How do I perform this task safely?" | `operations-runbook.md` |
 | Troubleshooting | "I see symptom X — what now?" | `troubleshooting.md` |
 | Diagram | "How do these parts relate / interact?" | `diagram-conventions.md` |
