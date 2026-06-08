@@ -1,0 +1,140 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+# Least privilege by default; the image job below opts into packages:write.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref (distinct tags keep distinct groups,
+# so a release build is never cancelled by another).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # MongoDB as a service container. The mongo-backed CT suites
+    # (udr_db_mongo_conformance_SUITE, udr_hss_dist_SUITE) detect CI=true
+    # (set automatically by GitHub) and use this service instead of starting
+    # their own podman container. See apps/udr_db_mongo/test/udr_mongo_ct.erl.
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+
+    env:
+      MONGO_HOST: 127.0.0.1
+      MONGO_PORT: 27017
+
+    steps:
+      # Pinned to commit SHAs (supply-chain hardening); version in trailing comment.
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
+        with:
+          otp-version: '29'
+          rebar3-version: '3.26.0'
+
+      - name: Cache rebar3 cache, _build and the dialyzer PLT
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cache/rebar3
+            _build
+          key: ${{ runner.os }}-otp29-${{ hashFiles('rebar.lock', 'rebar.config') }}
+          restore-keys: |
+            ${{ runner.os }}-otp29-
+
+      - name: Compile
+        run: rebar3 compile
+
+      - name: Dialyzer
+        run: rebar3 dialyzer
+
+      # GitHub sets CI=true, so the mongo suites run against the service above.
+      - name: Common Test
+        run: rebar3 ct
+
+      - name: Release assembly sanity (covers PRs, which don't build the image)
+        run: rebar3 as docker release
+
+      # GitHub bills artifacts by their UNCOMPRESSED size and only serves them as
+      # a .zip, so upload a single pre-compressed tarball instead of the raw tree.
+      - name: Package CT logs on failure
+        if: failure()
+        run: |
+          if [ -d _build/test/logs ]; then
+            tar -cJf ct-logs.tar.xz -C _build/test logs
+          fi
+
+      - name: Upload CT logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ct-logs
+          path: ct-logs.tar.xz
+          if-no-files-found: ignore
+
+  image:
+    # Build & push the container only after tests pass, and never on PRs:
+    # push to main -> :latest (+ :sha); a v* tag -> semver tags.
+    needs: test
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ghcr.io/next-nf/udr
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push (linux/amd64)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

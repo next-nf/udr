@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+
+# ---- build stage: official Alpine Erlang/OTP-29 (rebar3 preinstalled) ------
+FROM erlang:29-alpine AS build
+
+# git: needed to fetch the `mongodb` and `opentelemetry_cowboy_h` git deps.
+# (rebar3 and OTP's `diameter` dict compiler, used by udr_diameter's build-time
+# pre_hook, are already in the image.)
+RUN apk add --no-cache git
+
+WORKDIR /src
+COPY . .
+
+# Prod release (bundled ERTS) with the 0.0.0.0-binding container config.
+RUN rebar3 as docker release
+
+# ---- runtime stage: minimal Alpine matching the builder's ABI --------------
+# Pinned to the Alpine major.minor that erlang:29-alpine is built on (3.23) so
+# libssl/libcrypto match the release's bundled ERTS (Erlang's crypto NIF links
+# the system libcrypto at runtime).
+FROM alpine:3.23 AS runtime
+
+RUN apk add --no-cache openssl ncurses-libs libstdc++ libgcc ca-certificates \
+ && adduser -D -h /opt/udr udr
+
+WORKDIR /opt/udr
+COPY --from=build --chown=udr:udr /src/_build/docker/rel/udr ./
+
+USER udr
+
+# S6a diameter, Nudr (SBI) HTTP, provisioning HTTP
+EXPOSE 3868 8080 8090
+
+ENTRYPOINT ["/opt/udr/bin/udr"]
+CMD ["foreground"]

@@ -80,12 +80,13 @@ init_per_suite(Config) ->
         {skip, _} = Skip ->
             Skip;
         ok ->
-            case mongo_available() of
-                false ->
-                    {skip, "podman/mongo:7 unavailable"};
-                true ->
-                    {NodeA, PeerA} = start_worker(),
-                    {NodeB, PeerB} = start_worker(),
+            case udr_mongo_ct:start(?CONTAINER, ?PORT) of
+                {skip, Reason} ->
+                    {skip, Reason};
+                {ok, #{host := Host, port := Port}} ->
+                    Opts = #{database => ?DB, host => Host, port => Port},
+                    {NodeA, PeerA} = start_worker(Opts),
+                    {NodeB, PeerB} = start_worker(Opts),
                     ok = await_cluster(NodeA, NodeB),
                     [{peers, [PeerA, PeerB]},
                      {node_a, NodeA}, {node_b, NodeB} | Config]
@@ -94,7 +95,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     [ catch peer:stop(P) || P <- proplists:get_value(peers, Config, []) ],
-    stop_mongo(),
+    udr_mongo_ct:stop(?CONTAINER),
     ok.
 
 %% --- testcases ------------------------------------------------------------
@@ -195,17 +196,14 @@ cross_node_session_lock(Config) ->
 %% --- worker node lifecycle ------------------------------------------------
 
 %% Start one peer worker node, give it the full code path, point it at the
-%% shared Mongo, and bring up the udr_hss stack on it.
-start_worker() ->
+%% shared Mongo (Opts), and bring up the udr_hss stack on it.
+start_worker(Opts) ->
     {ok, Peer, Node} = ?CT_PEER(),
     unlink(Peer),
     ok = erpc:call(Node, code, add_paths, [code:get_path()]),
-    ok = erpc:call(Node, ?MODULE, configure_backend, [backend_opts()]),
+    ok = erpc:call(Node, ?MODULE, configure_backend, [Opts]),
     {ok, _Started} = erpc:call(Node, application, ensure_all_started, [udr_hss]),
     {Node, Peer}.
-
-backend_opts() ->
-    #{database => ?DB, host => "127.0.0.1", port => ?PORT}.
 
 %% Runs ON a worker node: select the Mongo backend before udr_db starts. Load
 %% udr_db first so the env override is not reset to the .app default when
@@ -264,64 +262,13 @@ await_visible(Observer, Registrar, Imsi) ->
     exit(Holder, kill),
     Res.
 
-%% --- distribution + mongo container ---------------------------------------
+%% --- distribution ---------------------------------------------------------
 
 ensure_distributed() ->
     case net_kernel:start(udr_dist_origin, #{name_domain => shortnames}) of
         {ok, _}                       -> ok;
         {error, {already_started, _}} -> ok;
         {error, Reason}               -> {skip, {no_distribution, Reason}}
-    end.
-
-mongo_available() ->
-    podman() =/= false andalso start_mongo() =:= ok.
-
-podman() -> os:find_executable("podman").
-
-start_mongo() ->
-    _ = os:cmd("podman rm -f " ?CONTAINER " 2>/dev/null"),
-    Cmd = "podman run -d --rm --name " ?CONTAINER
-          " -p " ++ integer_to_list(?PORT) ++ ":27017 mongo:7 2>&1",
-    Out = os:cmd(Cmd),
-    case string:find(Out, "Error") of
-        nomatch -> wait_ready(60);
-        _       -> {error, Out}
-    end.
-
-stop_mongo() -> os:cmd("podman stop " ?CONTAINER " 2>/dev/null"), ok.
-
-%% A freshly-booted mongo container accepts then drops connections during
-%% first-boot churn, intermittently and per-connection. Require several
-%% CONSECUTIVE fresh connections to each survive a short hold, which only
-%% happens once mongo is comfortably past the churn window.
--define(NEED_STABLE, 3).
-
-wait_ready(N) -> wait_ready(N, 0).
-
-wait_ready(0, _) -> {error, timeout};
-wait_ready(_N, Consec) when Consec >= ?NEED_STABLE -> ok;
-wait_ready(N, Consec) ->
-    case probe() of
-        ok    -> wait_ready(N - 1, Consec + 1);
-        _Fail -> timer:sleep(1000), wait_ready(N - 1, 0)
-    end.
-
-%% Raw TCP readiness: a connection mongod holds open (recv times out rather than
-%% returning {error,closed}) means it is past first-boot churn. Plain gen_tcp
-%% return values -- no linked process, so no tcp_closed CRASH REPORT spam.
-probe() ->
-    case gen_tcp:connect("127.0.0.1", ?PORT, [binary, {active, false}], 2000) of
-        {ok, Sock} ->
-            timer:sleep(800),
-            R = case gen_tcp:recv(Sock, 0, 200) of
-                    {error, timeout} -> ok;
-                    {error, closed}  -> {error, closed};
-                    {error, _} = E   -> E;
-                    {ok, _}          -> ok
-                end,
-            gen_tcp:close(Sock),
-            R;
-        {error, _} = E -> E
     end.
 
 wait_until(_F, 0) -> erlang:error(timeout);
