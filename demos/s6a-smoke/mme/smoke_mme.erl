@@ -16,7 +16,7 @@
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
 
--export([main/1]).
+-export([main/0]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
 
@@ -32,8 +32,8 @@
 
 %% --- entry point (invoked via `erl -run smoke_mme main`) ---
 
--spec main(list()) -> no_return().
-main(_) ->
+-spec main() -> no_return().
+main() ->
     Host = getenv("HSS_HOST", "hss"),
     Port = list_to_integer(getenv("HSS_PORT", "3868")),
     Imsi = list_to_binary(getenv("IMSI", "001010000000001")),
