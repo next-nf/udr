@@ -89,7 +89,7 @@ Erlang distribution between the nodes (node name, cookie, `epmd`, and the distri
 
 ### Symptom
 
-Across a cluster, two nodes appear to process signalling for the **same** subscriber at the same time — for example two near-simultaneous S6a procedures for one IMSI both proceed, where cluster-wide serialization was expected to make one wait. A query of the lock holder for that IMSI returns a different pid on each node, rather than a single shared owner.
+Across a cluster, two nodes appear to process signaling for the **same** subscriber at the same time — for example two near-simultaneous S6a procedures for one IMSI both proceed, where cluster-wide serialization was expected to make one wait. A query of the lock holder for that IMSI returns a different pid on each node, rather than a single shared owner.
 
 ### Affected component
 
@@ -126,7 +126,7 @@ Across a cluster, two nodes appear to process signalling for the **same** subscr
 - For cause 2: the underlying network partition `shall` be repaired so the nodes rejoin one mesh; once `nodes()` lists every peer again, the per-IMSI lock is shared across the cluster.
 
 > [!WARNING]
-> When the nodes are not interconnected, each node holds per-IMSI locks only locally. Two nodes that both believe they hold the lock for one IMSI can process signalling for that subscriber concurrently. Confirm interconnection (`nodes()` lists every peer) before relying on cluster-wide serialization. This behavior is documented in the [cluster configuration reference §5](../configuration/cluster.md#5-operational-prerequisites).
+> When the nodes are not interconnected, each node holds per-IMSI locks only locally. Two nodes that both believe they hold the lock for one IMSI can process signaling for that subscriber concurrently. Confirm interconnection (`nodes()` lists every peer) before relying on cluster-wide serialization. This behavior is documented in the [cluster configuration reference §5](../configuration/cluster.md#5-operational-prerequisites).
 
 > [!NOTE]
 > The lock is advisory and scoped to one request: `with_session/2,3` acquires it for the duration of the handler and releases it when the handler returns, raises, or its process or node dies (confirmed in `udr_cluster.erl`). The acquire timeout (5000 ms) and retry interval (25 ms) are compile-time constants, not configuration; a caller that cannot acquire within the timeout receives `{error, session_busy}`.

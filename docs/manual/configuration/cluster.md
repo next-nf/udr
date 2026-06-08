@@ -10,7 +10,7 @@ This reference covers the `udr_cluster` application: cluster-wide per-[IMSI](../
 
 ## 2. Terms
 
-- **Per-IMSI session lock** — a cluster-wide lock that gives one subscriber a single owner across all connected nodes for the duration of a request, so that concurrent signalling for one IMSI serializes. It is provided by `udr_cluster` over [`syn`](../glossary.md).
+- **Per-IMSI session lock** — a cluster-wide lock that gives one subscriber a single owner across all connected nodes for the duration of a request, so that concurrent signaling for one IMSI serializes. It is provided by `udr_cluster` over [`syn`](../glossary.md).
 - **`syn` scope** — the named [`syn`](../glossary.md) registry scope (`udr_session`) in which the per-IMSI locks are registered. Every node joins this scope at start.
 
 ## 3. Where configuration lives
@@ -50,7 +50,7 @@ For two or more nodes to share the per-IMSI lock space, all of the following app
 > The distribution cookie is a security boundary. A host that knows the cookie and can reach the distribution port can run code on every node in the mesh. Replace the shipped `udr_cookie` and restrict the distribution and `epmd` ports to a trusted network before clustering across hosts.
 
 > [!WARNING]
-> When the nodes are not interconnected (for example because of a cookie mismatch or an unreachable distribution port), each node holds locks only locally. Two nodes that both believe they hold the lock for one IMSI can then process signalling for that subscriber concurrently. Confirm interconnection (§7) before relying on cluster-wide serialization.
+> When the nodes are not interconnected (for example because of a cookie mismatch or an unreachable distribution port), each node holds locks only locally. Two nodes that both believe they hold the lock for one IMSI can then process signaling for that subscriber concurrently. Confirm interconnection (§7) before relying on cluster-wide serialization.
 
 ## 6. Example
 
@@ -70,7 +70,7 @@ Node 2:
 -setcookie s3cr3t-shared-cookie
 ```
 
-With both started and interconnected, a per-IMSI lock taken on either node is visible to the other, so signalling for one subscriber serializes across both.
+With both started and interconnected, a per-IMSI lock taken on either node is visible to the other, so signaling for one subscriber serializes across both.
 
 ## 7. Verify
 

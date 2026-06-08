@@ -6,7 +6,7 @@
 
 This reference covers the `udr_diameter` application: the [S6a](../glossary.md) [Diameter](../glossary.md) wire layer and its TCP listener. It documents the Diameter identity this node presents (`origin_host`, `origin_realm`) and the transport endpoints it binds (`listen`).
 
-The S6a message contract (AIR/AIA, ULR/ULA, PUR/PUA, CLR/CLA) is out of scope here and belongs to the (planned) S6a interface reference. Node name and distribution cookie are covered in the [node reference](node.md).
+The S6a message contract (AIR/AIA, ULR/ULA, PUR/PUA, CLR/CLA) is out of scope here and belongs to the [S6a interface reference](../interfaces/s6a.md). Node name and distribution cookie are covered in the [node reference](node.md).
 
 ## 2. Terms
 
@@ -60,9 +60,6 @@ Configuration is in `config/sys.config` under the `udr_diameter` key, applied at
 
 > [!WARNING]
 > The default `{tcp, {127,0,0,1}, 3868}` binds the S6a listener to loopback only. A fresh checkout therefore exposes no Diameter port to the network and no external MME can connect. To accept an external MME, change `listen` to a routable address.
-
-> [!NOTE]
-> The default binds to loopback so a fresh checkout is safe by default and exposes no Diameter port.
 
 ## 6. Example
 

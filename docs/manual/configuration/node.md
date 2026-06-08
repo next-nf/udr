@@ -50,7 +50,7 @@ The `prod` profile overrides `mode` to `prod`:
 
 | Parameter | Type | Default | Allowed values | Unit | Description | Effect | Since |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `-sname` | atom (short name) | `udr` | a short node name (no dot), or replace with `-name` for a fully-qualified name | — | The node name registered with [`epmd`](#52--sname---name) on the local host. | Sets the node identity used by Erlang distribution; peers address this node by `name@host`. | 0.1.0 |
+| `-sname` | atom (short name) | `udr` | a short node name (no dot), or replace with `-name` for a fully-qualified name | — | The node name registered with [`epmd`](../glossary.md) on the local host. | Sets the node identity used by Erlang distribution; peers address this node by `name@host`. | 0.1.0 |
 | `-name` | atom (long name) | *not set* (the shipped file uses `-sname`) | a fully-qualified node name `name@fqdn` | — | The long node name, used in place of `-sname` for distribution across hosts. | Enables a node to interconnect across hosts that address each other by FQDN. | 0.1.0 |
 | `-setcookie` | atom | `udr_cookie` | any atom | — | The Erlang distribution cookie. | Two nodes interconnect only if their cookies are equal; a mismatch is refused. | 0.1.0 |
 | `+K` | boolean flag | `true` | `true`, `false` | — | Enables the kernel-poll I/O event mechanism in the emulator. | When `true`, the emulator uses scalable kernel polling for socket I/O. | 0.1.0 |

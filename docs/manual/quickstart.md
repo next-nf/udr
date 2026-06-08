@@ -137,7 +137,7 @@ The 5G [SBI](glossary.md) (Nudr-DR) is served by `udr_sbi` on `127.0.0.1:8080`. 
    ```
 
 > [!WARNING]
-> This SBI resource returns the long-term key material ([Ki](glossary.md) and [OPc](glossary.md)) in clear hex. On a real deployment the SBI listener `shall not` be exposed to untrusted networks. Hardening of the SBI is covered in the (planned) security documentation.
+> This SBI resource returns the long-term key material ([Ki](glossary.md) and [OPc](glossary.md)) in clear hex. On a real deployment the SBI listener `shall not` be exposed to untrusted networks. Hardening of the SBI is covered in [security.md](security.md).
 
 ### 5.2 Access-and-mobility data
 
@@ -161,7 +161,7 @@ The `am-data` resource returns the subscription profile minus the APN configurat
 ## 6. Demonstrate authentication material end to end
 
 > [!IMPORTANT]
-> Exercising the full [S6a](glossary.md) [AIR](glossary.md) over Diameter requires a Diameter peer (an [MME](glossary.md) or a test client) to send the AIR. Connecting an MME is the subject of the (planned) "connect an MME" operations runbook. This step does **not** fake a `curl` against the Diameter listener; instead it produces the authentication material directly in the running node's Erlang shell, which is the same code path the AIR uses.
+> Exercising the full [S6a](glossary.md) [AIR](glossary.md) over Diameter requires a Diameter peer (an [MME](glossary.md) or a test client) to send the AIR. Connecting an MME is the subject of the [connect-an-MME runbook](operations/s6a-peer.md) (`RUN-S6A-PEER-001`). This step does **not** fake a `curl` against the Diameter listener; instead it produces the authentication material directly in the running node's Erlang shell, which is the same code path the AIR uses.
 
 This step is run in the **first** terminal, at the Erlang shell from step 2.
 
@@ -235,15 +235,15 @@ The function `udr_hss:handle_air/1` is the same handler the S6a transport calls 
    ```
 
 > [!NOTE]
-> What step 6 proves: the credentials provisioned in step 3 produce valid [EPS-AKA](glossary.md) authentication vectors through the same code the S6a [AIR](glossary.md) uses, and the AIR advances the per-subscriber [SQN](glossary.md). It does not prove S6a interoperability on the wire; that needs a Diameter peer and is left to the (planned) "connect an MME" runbook.
+> What step 6 proves: the credentials provisioned in step 3 produce valid [EPS-AKA](glossary.md) authentication vectors through the same code the S6a [AIR](glossary.md) uses, and the AIR advances the per-subscriber [SQN](glossary.md). It does not prove S6a interoperability on the wire; that needs a Diameter peer and is the subject of the [connect-an-MME runbook](operations/s6a-peer.md).
 
 ## 7. Observing spans (optional)
 
 > [!NOTE]
-> The default `traces_exporter` in `config/sys.config` is `none`, so spans are **not** exported unless an exporter is configured. The S6a path produces spans named `s6a.AIR`, `s6a.ULR`, and `s6a.PUR` (confirmed in `apps/udr_diameter/src/udr_diameter_s6a.erl`). To export them, set `traces_exporter` and the OTLP endpoint as shown in the project `README.md`, then point the node at a collector. Tracing setup is covered in the (planned) operations documentation.
+> The default `traces_exporter` in `config/sys.config` is `none`, so spans are **not** exported unless an exporter is configured. The S6a path produces spans named `s6a.AIR`, `s6a.ULR`, and `s6a.PUR` (confirmed in `apps/udr_diameter/src/udr_diameter_s6a.erl`). To export them, set `traces_exporter` and the OTLP endpoint as shown in the project `README.md`, then point the node at a collector. Tracing setup is covered in the [observability runbook](operations/observability.md) (`RUN-OBSERVABILITY-001`).
 
 ## 8. Next steps
 
-- To select the [MongoDB](glossary.md) backend, set listener addresses for external peers, or change the S6a identity, see the (planned) configuration reference.
-- To connect a real [MME](glossary.md) over [S6a](glossary.md) and observe AIR/ULR on the wire, see the (planned) "connect an MME" operations runbook.
-- To export traces and metrics to a collector, see the (planned) operations documentation.
+- To select the [MongoDB](glossary.md) backend, set listener addresses for external peers, or change the S6a identity, see the [configuration references](configuration/README.md).
+- To connect a real [MME](glossary.md) over [S6a](glossary.md) and observe AIR/ULR on the wire, see the [connect-an-MME runbook](operations/s6a-peer.md).
+- To export traces and metrics to a collector, see the [observability runbook](operations/observability.md).

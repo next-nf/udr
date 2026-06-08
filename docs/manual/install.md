@@ -76,7 +76,7 @@ _build/default/rel/udr/bin/udr console
 ```
 
 > [!NOTE]
-> The default release `mode` is `dev`. A production release is built with the `prod` profile (`rebar3 as prod release`), which assembles the release in `prod` mode. Production tuning is covered in the (planned) operations documentation.
+> The default release `mode` is `dev`. A production release is built with the `prod` profile (`rebar3 as prod release`), which assembles the release in `prod` mode. Production tuning is covered in the [deploy runbook](operations/deploy.md) (`RUN-DEPLOY-001`).
 
 ### Verify (boot)
 
@@ -119,4 +119,4 @@ A reachable-but-empty node returns `404` for an unprovisioned subscriber, which 
 ## 5. Next steps
 
 - To provision a subscriber and exercise authentication, see [quickstart.md](quickstart.md).
-- For backend selection, identities, and listener addresses, see the (planned) configuration reference.
+- For backend selection, identities, and listener addresses, see the [configuration references](configuration/README.md).

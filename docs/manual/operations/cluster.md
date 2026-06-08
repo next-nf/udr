@@ -4,7 +4,7 @@
 
 ## Scope
 
-This runbook covers forming a cluster of `udr` nodes, adding a node to a running cluster, and removing one. A cluster shares the cluster-wide per-[IMSI](../glossary.md) session lock space, provided by `udr_cluster` over [`syn`](../glossary.md), so that concurrent signalling for one subscriber serializes across nodes. It is for operators scaling the HSS beyond one node. The clustering prerequisites and the per-IMSI locking behavior are described in the [cluster configuration reference](../configuration/cluster.md); the node name and cookie are defined in the [node reference](../configuration/node.md).
+This runbook covers forming a cluster of `udr` nodes, adding a node to a running cluster, and removing one. A cluster shares the cluster-wide per-[IMSI](../glossary.md) session lock space, provided by `udr_cluster` over [`syn`](../glossary.md), so that concurrent signaling for one subscriber serializes across nodes. It is for operators scaling the HSS beyond one node. The clustering prerequisites and the per-IMSI locking behavior are described in the [cluster configuration reference](../configuration/cluster.md); the node name and cookie are defined in the [node reference](../configuration/node.md).
 
 > [!NOTE]
 > A single node forms a cluster of one and needs no distribution configuration. Clustering is established entirely by Erlang distribution — a distinct node name and a shared cookie — and `udr_cluster` joins each node to the `udr_session` [`syn`](../glossary.md) scope at start. There is no `udr_cluster` key to enable or size clustering (see the [cluster configuration reference](../configuration/cluster.md) §4).
@@ -36,7 +36,7 @@ This runbook covers forming a cluster of `udr` nodes, adding a node to a running
 > The distribution cookie is a security boundary. A host that knows the cookie and can reach the distribution port can run code on every node in the mesh. The shipped `udr_cookie` `shall` be replaced with a unique secret value, and the distribution and `epmd` ports `shall` be restricted to a trusted network, before clustering across hosts (see the [node reference](../configuration/node.md) §5.2).
 
 > [!WARNING]
-> While nodes are not interconnected (for example because of a cookie mismatch or an unreachable distribution port), each node holds locks only locally, and two nodes can process signalling for the same IMSI concurrently. Confirm interconnection (see Verify) before relying on cluster-wide serialization.
+> While nodes are not interconnected (for example because of a cookie mismatch or an unreachable distribution port), each node holds locks only locally, and two nodes can process signaling for the same IMSI concurrently. Confirm interconnection (see Verify) before relying on cluster-wide serialization.
 
 ### Steps
 

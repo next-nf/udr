@@ -43,9 +43,9 @@ The system is a [rebar3](glossary.md) umbrella. Each application has a single, w
 ## 3. The data-access seam
 
 > [!IMPORTANT]
-> The HSS logic in `udr_hss`, the SBI handlers in `udr_sbi`, and the provisioning handlers in `udr_provision` reach subscriber data **only** through `udr_data`, and `udr_data` reaches storage **only** through `udr_db`. No signalling code calls a backend directly.
+> The HSS logic in `udr_hss`, the SBI handlers in `udr_sbi`, and the provisioning handlers in `udr_provision` reach subscriber data **only** through `udr_data`, and `udr_data` reaches storage **only** through `udr_db`. No signaling code calls a backend directly.
 
-A consequence of this seam is that the storage backend is swappable: selecting [MongoDB](glossary.md) in place of the default [ETS](glossary.md) backend, or adding a further backend, changes configuration only and touches no signalling code. Backend selection is covered in the (planned) configuration reference.
+A consequence of this seam is that the storage backend is swappable: selecting [MongoDB](glossary.md) in place of the default [ETS](glossary.md) backend, or adding a further backend, changes configuration only and touches no signaling code. Backend selection is covered in the [data-store configuration reference](configuration/data-store.md).
 
 ## 4. The three entry paths
 
@@ -60,7 +60,7 @@ The system has three independent listeners, one per entry path. Each path ends a
 | SBI | 5G consumer (the [AMF](glossary.md) Access and Mobility Management Function and other network functions) | SBI (Nudr-DR) | consumer → `udr_sbi` → `udr_data` → `udr_db` |
 | Provisioning | admin | Provisioning API | admin → `udr_provision` → `udr_data` → `udr_db` |
 
-On the S6a path, `udr_hss` runs each procedure inside the per-IMSI cluster lock provided by `udr_cluster`, so that concurrent signalling for one subscriber serializes. On an [AIR](glossary.md), `udr_hss` reads the subscriber's authentication subscription through `udr_data`, advances the stored [SQN](glossary.md), and calls `udr_crypto` to generate the [EPS authentication vectors](glossary.md) (AV) returned in the [AIA](glossary.md).
+On the S6a path, `udr_hss` runs each procedure inside the per-IMSI cluster lock provided by `udr_cluster`, so that concurrent signaling for one subscriber serializes. On an [AIR](glossary.md), `udr_hss` reads the subscriber's authentication subscription through `udr_data`, advances the stored [SQN](glossary.md), and calls `udr_crypto` to generate the [EPS authentication vectors](glossary.md) (AV) returned in the [AIA](glossary.md).
 
 ## 5. Deployment topology
 
@@ -93,7 +93,7 @@ flowchart LR
 ```
 
 > [!NOTE]
-> The default listeners bind to the loopback address `127.0.0.1`, so a fresh checkout exposes no port to the network. Binding to a routable address for external peers is covered in the (planned) configuration reference.
+> The default listeners bind to the loopback address `127.0.0.1`, so a fresh checkout exposes no port to the network. Binding to a routable address for external peers is covered in the [configuration references](configuration/README.md).
 
 ## 6. LTE attach against the HSS
 
@@ -112,7 +112,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> The [AIR](glossary.md) produces a span named `s6a.AIR` and the [ULR](glossary.md) a span named `s6a.ULR`. Spans are exported only when a trace exporter is configured; see [quickstart.md](quickstart.md) §6 and the (planned) operations documentation.
+> The [AIR](glossary.md) produces a span named `s6a.AIR` and the [ULR](glossary.md) a span named `s6a.ULR`. Spans are exported only when a trace exporter is configured; see [quickstart.md](quickstart.md) §6 and the [observability runbook](operations/observability.md).
 
 ## 7. Next steps
 

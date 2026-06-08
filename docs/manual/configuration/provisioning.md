@@ -6,7 +6,7 @@
 
 This reference covers the `udr_provision` application: the admin provisioning HTTP API that creates, reads, and deletes subscribers by [IMSI](../glossary.md). It documents the two configuration keys the application reads — the TCP port (`port`) and the bind address (`ip`).
 
-The provisioning request and response contract (the subscriber payload and its fields) is out of scope here and belongs to the (planned) provisioning interface reference. That interface is where per-subscriber authentication data — algorithm, Ki, OP/OPc, [AMF (Authentication Management Field)](../glossary.md), and [SQN](../glossary.md) — is supplied; none of it is node configuration.
+The provisioning request and response contract (the subscriber payload and its fields) is out of scope here and belongs to the [provisioning interface reference](../interfaces/provisioning.md). That interface is where per-subscriber authentication data — algorithm, Ki, OP/OPc, [AMF (Authentication Management Field)](../glossary.md), and [SQN](../glossary.md) — is supplied; none of it is node configuration.
 
 ## 2. Terms
 

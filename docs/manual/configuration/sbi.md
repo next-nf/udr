@@ -6,7 +6,7 @@
 
 This reference covers the `udr_sbi` application: the [Nudr](../glossary.md)-flavoured 5G [SBI](../glossary.md) data-repository HTTP listener. It documents the two configuration keys the application reads — the TCP port (`port`) and the bind address (`ip`).
 
-The Nudr-DR resource contract (the `authentication-subscription`, `am-data`, and `amf-3gpp-access` resources) is out of scope here and belongs to the (planned) SBI interface reference.
+The Nudr-DR resource contract (the `authentication-subscription`, `am-data`, and `amf-3gpp-access` resources) is out of scope here and belongs to the [SBI interface reference](../interfaces/sbi.md).
 
 ## 2. Terms
 

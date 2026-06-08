@@ -13,24 +13,24 @@ Familiarity with 3GPP core-network concepts (EPC, S6a, the 5G Service-Based Inte
 Every document in this manual follows the project documentation standard, the `documenting-hss` house standard at [`.claude/skills/documenting-hss/`](../../.claude/skills/documenting-hss/). That standard governs the verbal forms (`shall` / `should` / `may` / `can`), the separation of normative from informative text, the use of GitHub admonitions for asides, American spelling, and the rule that each term is defined once.
 
 > [!NOTE]
-> This manual is being written in stages. Sections marked **(planned)** are not yet written and are listed here so that the intended structure is visible. Only sections with a link exist today.
+> This manual is being written in stages. Every document listed below now exists; each links to its page.
 
 ## Contents
 
 | Document | Purpose | Status |
 | --- | --- | --- |
 | [Terms and Abbreviations](glossary.md) | The shared glossary every other document links to. | Available |
-| `overview.md` | Architecture and data flow across the umbrella applications. | (planned) |
-| `install.md` | Prerequisites and build instructions. | (planned) |
-| `quickstart.md` | From clone to the first authenticated subscriber. | (planned) |
+| [Overview](overview.md) | Architecture and data flow across the umbrella applications. | Available |
+| [Installation and build](install.md) | Prerequisites and build instructions. | Available |
+| [Quickstart](quickstart.md) | From clone to the first authenticated subscriber. | Available |
 | [Configuration](configuration/README.md) | One configuration reference per subsystem. | Available |
 | [Interfaces](interfaces/README.md) | S6a, SBI, and Provisioning API interface references. | Available |
 | [Operations](operations/README.md) | Operational runbooks. | Available |
 | [Troubleshooting](troubleshooting/README.md) | Troubleshooting guides, indexed by the symptom you observe. | Available |
-| `diagrams/` | Shared deployment, sequence, and state diagrams. | (planned) |
-| `security.md` | Security configuration and hardening guidance. | (planned) |
-| `compatibility.md` | Supported versions and interoperability notes. | (planned) |
+| [Diagrams](diagrams/README.md) | Shared deployment, sequence, and state diagrams. | Available |
+| [Security](security.md) | Security considerations and hardening guidance. | Available |
+| [Compatibility](compatibility.md) | Supported versions and interoperability notes. | Available |
 
 ## How the manual is organized
 
-The glossary is the canonical source of terms and abbreviations; every other document links to it rather than redefining a term. The `configuration/`, `interfaces/`, `operations/`, and `troubleshooting/` directories will each hold one document per subsystem or task, following the matching template from the documentation standard. Shared diagrams will live under `diagrams/` so that several documents can reference the same figure.
+The glossary is the canonical source of terms and abbreviations; every other document links to it rather than redefining a term. The `configuration/`, `interfaces/`, `operations/`, and `troubleshooting/` directories each hold one document per subsystem or task, following the matching template from the documentation standard. Shared diagrams live under `diagrams/` so that several documents can reference the same figure. The [security](security.md) and [compatibility](compatibility.md) pages sit at the top level alongside the overview.

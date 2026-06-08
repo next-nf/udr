@@ -57,7 +57,7 @@ Terms used below — SBI, Nudr, AMF (Access and Mobility Management Function), I
   ```
 
 > [!WARNING]
-> This resource returns the long-term key material — [Ki](../glossary.md) and [OPc](../glossary.md) — in clear lowercase hex. This is consistent with how the quickstart already flags the same response. On a real deployment the SBI listener `shall not` be exposed to an untrusted network. Hardening of the SBI is covered in the (planned) security documentation.
+> This resource returns the long-term key material — [Ki](../glossary.md) and [OPc](../glossary.md) — in clear lowercase hex. This is consistent with how the quickstart already flags the same response. On a real deployment the SBI listener `shall not` be exposed to an untrusted network. Hardening of the SBI is covered in [security.md](../security.md).
 
 ### 5.2 `IF-SBI-002` — GET am-data
 
