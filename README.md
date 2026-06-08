@@ -4,8 +4,10 @@ A converged **Home Subscriber Server (HSS)** and **Unified Data Repository / Uni
 
 It speaks the **S6a Diameter** interface that an MME expects from an EPC HSS, and exposes a **5G Service-Based Interface (Nudr-DR)** for subscriber data — backed by a pluggable document store, clustered for per-subscriber consistency, and instrumented with OpenTelemetry out of the box.
 
+> [!NOTE]
 > **Why Erlang?** Erlang was created at Ericsson to run telephone switches — soft real-time, massively concurrent, and built to stay up through faults and upgrades. A subscriber database on the signalling path is exactly that workload: many small concurrent transactions, strict latency, and no acceptable downtime. This project puts a modern 3GPP core network function back on the runtime that was designed for telecom in the first place.
 
+> [!WARNING]
 > **Status:** early (v0.1.0). The interfaces below work end to end; the surface is deliberately small and growing. Not yet a drop-in for a production network.
 
 ---
