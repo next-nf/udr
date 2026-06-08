@@ -30,6 +30,7 @@ Every document in this manual follows the project documentation standard, the `d
 | [Diagrams](diagrams/README.md) | Shared deployment, sequence, and state diagrams. | Available |
 | [Security](security.md) | Security considerations and hardening guidance. | Available |
 | [Compatibility](compatibility.md) | Supported versions and interoperability notes. | Available |
+| [Maintenance](maintaining.md) | Keeping the manual accurate as the code evolves: the change-impact map, versioning, and pre-merge checks. | Available |
 
 ## How the manual is organized
 
