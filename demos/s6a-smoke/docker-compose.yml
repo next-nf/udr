@@ -1,0 +1,30 @@
+name: udr-s6a-smoke
+
+services:
+  # The HSS, built from the repository's release image. Binds 0.0.0.0 via
+  # config/docker.sys.config; default in-memory ETS backend (no database).
+  hss:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: udr-hss:demo
+    ports:
+      - "8080:8080"   # SBI (Nudr-DR)
+      - "8090:8090"   # provisioning API (run.sh seeds the subscriber here)
+      - "3868:3868"   # S6a Diameter (the client reaches it over the compose network)
+
+  # The S6a MME client. Started on demand by run.sh (`docker compose run mme`),
+  # not by `up`, hence the profile. It reaches the HSS as `hss` on the network.
+  mme:
+    build:
+      context: ../..
+      dockerfile: demos/s6a-smoke/mme/Dockerfile
+    image: udr-s6a-smoke-mme:demo
+    depends_on:
+      - hss
+    environment:
+      HSS_HOST: hss
+      HSS_PORT: "3868"
+      IMSI: "001010000000001"
+      NUM_VECTORS: "2"
+    profiles: ["client"]
