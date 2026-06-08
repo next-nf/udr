@@ -36,6 +36,14 @@ echo "==> Provisioning subscriber ${IMSI}"
 
 echo "==> Running the S6a MME client (AIR + ULR)"
 docker compose build mme
-docker compose run --rm mme
+# --no-deps: reuse the already-running, already-provisioned HSS rather than
+# letting `run` recreate it (a recreate would also wipe the ETS-held subscriber).
+if ! docker compose run --rm --no-deps mme; then
+  echo "---- docker compose ps ----"
+  docker compose ps -a || true
+  echo "---- hss logs ----"
+  docker compose logs hss || true
+  exit 1
+fi
 
 echo "==> Demo passed: the HSS authenticated and located the subscriber over S6a"
