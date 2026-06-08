@@ -1,0 +1,45 @@
+name: ghcr-cleanup
+
+# GHCR has no native retention/TTL for container images, so this scheduled job
+# prunes the non-release images from ghcr.io/next-nf/udr: the per-commit `sha-*`
+# images and the orphaned untagged manifests left behind when `latest`/semver
+# tags move, once they are older than a month. Every release is always kept:
+# `latest` + semver (e.g. 0.1, 0.1.0).
+on:
+  schedule:
+    - cron: '0 4 * * 1' # weekly, Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview deletions without deleting (manual runs default to true)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prune non-release images
+        uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          packages: udr
+          # Never delete a release: latest + semver tags (X.Y, X.Y.Z).
+          exclude-tags: 'latest,*.*,*.*.*'
+          # Delete the per-commit images...
+          delete-tags: 'sha-*'
+          # ...and the orphaned manifests left when tags move...
+          delete-untagged: true
+          # ...but only once they are older than a month.
+          older-than: 1 month
+          validate: true
+          # Manual runs preview by default; the weekly schedule runs live.
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
