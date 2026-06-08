@@ -16,6 +16,7 @@ Copy the matching template from [`templates/`](templates/) and fill it in. Do no
 | You are documenting… | Use |
 | --- | --- |
 | What a parameter does, its default, and its allowed values | [`templates/configuration-reference.md`](templates/configuration-reference.md) |
+| The contract of an interface (S6a, SBI, the provisioning API) | [`templates/interface-reference.md`](templates/interface-reference.md) |
 | How to perform an operational task (deploy, provision, back up, upgrade) | [`templates/operations-runbook.md`](templates/operations-runbook.md) |
 | A symptom an operator will hit and how to resolve it | [`templates/troubleshooting.md`](templates/troubleshooting.md) |
 | A deployment, sequence, or state diagram | [`templates/diagram-conventions.md`](templates/diagram-conventions.md) |
