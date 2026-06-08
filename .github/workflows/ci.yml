@@ -74,12 +74,21 @@ jobs:
       - name: Release assembly sanity (covers PRs, which don't build the image)
         run: rebar3 as docker release
 
+      # GitHub bills artifacts by their UNCOMPRESSED size and only serves them as
+      # a .zip, so upload a single pre-compressed tarball instead of the raw tree.
+      - name: Package CT logs on failure
+        if: failure()
+        run: |
+          if [ -d _build/test/logs ]; then
+            tar -cJf ct-logs.tar.xz -C _build/test logs
+          fi
+
       - name: Upload CT logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ct-logs
-          path: _build/test/logs
+          path: ct-logs.tar.xz
           if-no-files-found: ignore
 
   image:
