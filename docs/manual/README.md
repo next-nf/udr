@@ -24,7 +24,7 @@ Every document in this manual follows the project documentation standard, the `d
 | `install.md` | Prerequisites and build instructions. | (planned) |
 | `quickstart.md` | From clone to the first authenticated subscriber. | (planned) |
 | [Configuration](configuration/README.md) | One configuration reference per subsystem. | Available |
-| `interfaces/` | S6a, SBI, and Provisioning API interface references. | (planned) |
+| [Interfaces](interfaces/README.md) | S6a, SBI, and Provisioning API interface references. | Available |
 | `operations/` | Operational runbooks. | (planned) |
 | `troubleshooting/` | Troubleshooting guides. | (planned) |
 | `diagrams/` | Shared deployment, sequence, and state diagrams. | (planned) |
