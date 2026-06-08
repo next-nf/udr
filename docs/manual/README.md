@@ -26,7 +26,7 @@ Every document in this manual follows the project documentation standard, the `d
 | [Configuration](configuration/README.md) | One configuration reference per subsystem. | Available |
 | [Interfaces](interfaces/README.md) | S6a, SBI, and Provisioning API interface references. | Available |
 | [Operations](operations/README.md) | Operational runbooks. | Available |
-| `troubleshooting/` | Troubleshooting guides. | (planned) |
+| [Troubleshooting](troubleshooting/README.md) | Troubleshooting guides, indexed by the symptom you observe. | Available |
 | `diagrams/` | Shared deployment, sequence, and state diagrams. | (planned) |
 | `security.md` | Security configuration and hardening guidance. | (planned) |
 | `compatibility.md` | Supported versions and interoperability notes. | (planned) |
