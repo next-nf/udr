@@ -102,7 +102,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant MME
-    participant HSS as HSS (udr_diameter -> udr_hss -> udr_data)
+    participant HSS as HSS (udr_diameter → udr_hss → udr_data)
     MME->>HSS: AIR (S6a) — request authentication vectors
     Note over HSS: read auth subscription, advance SQN, generate EPS-AKA vectors (MILENAGE)
     HSS-->>MME: AIA (S6a) — EPS authentication vectors

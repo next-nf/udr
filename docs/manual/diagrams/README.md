@@ -111,13 +111,13 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant MME as MME (new)
-    participant HSS as HSS (udr_diameter -> udr_hss)
+    participant HSS as HSS (udr_diameter → udr_hss)
     participant OLD as MME (previous)
     MME->>HSS: AIR (S6a) — request authentication vectors
     Note over HSS: read auth subscription, advance SQN,<br/>generate EPS-AKA vectors (MILENAGE)
     HSS-->>MME: AIA (S6a) — Authentication-Info (E-UTRAN-Vector list)
     MME->>HSS: ULR (S6a) — register serving MME
-    Note over HSS: store registration;<br/>if a different MME was registered,<br/>originate CLR to it
+    Note over HSS: store registration,<br/>if a different MME was registered,<br/>originate CLR to it
     HSS-->>MME: ULA (S6a) — Subscription-Data
     opt serving MME changed
         HSS->>OLD: CLR (S6a) — cancel stale location (fire-and-forget)
@@ -135,7 +135,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant MME
-    participant HSS as HSS (udr_diameter -> udr_hss)
+    participant HSS as HSS (udr_diameter → udr_hss)
     MME->>HSS: PUR (S6a) — UE purged from MME
     Note over HSS: delete the serving-MME registration for the IMSI
     HSS-->>MME: PUA (S6a) — PUA-Flags = 1, Result-Code = 2001
@@ -151,7 +151,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant AMF
-    participant HSS as UDR (udr_sbi -> udr_data)
+    participant HSS as UDR (udr_sbi → udr_data)
     AMF->>HSS: PUT (SBI / Nudr)<br/>/nudr-dr/v1/subscription-data/{ueId}/<br/>context-data/amf-3gpp-access
     Note over HSS: store the registration document as supplied<br/>(handler does not validate its fields)
     HSS-->>AMF: 204 No Content (SBI)

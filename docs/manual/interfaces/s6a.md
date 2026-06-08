@@ -112,7 +112,7 @@ sequenceDiagram
     Note over HSS: read auth subscription, advance SQN,<br/>generate EPS-AKA vectors (MILENAGE)
     HSS-->>MME: AIA (S6a) — Authentication-Info (E-UTRAN-Vector list)
     MME->>HSS: ULR (S6a) — register serving MME
-    Note over HSS: store registration; if MME changed,<br/>originate CLR to the old MME
+    Note over HSS: store registration, if MME changed,<br/>originate CLR to the old MME
     HSS-->>MME: ULA (S6a) — Subscription-Data
     opt serving MME changed
         HSS->>MME: CLR (S6a) — to the previous MME (fire-and-forget)

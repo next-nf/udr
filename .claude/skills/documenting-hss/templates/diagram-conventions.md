@@ -19,6 +19,20 @@ documents.
 - Keep one diagram per block. A diagram that needs a paragraph of caveats is doing
   too much — split it.
 
+### Rendering constraints (GitHub Mermaid)
+
+GitHub's Mermaid parser silently fails to render a diagram on a couple of
+characters that are easy to introduce. In labels — participant aliases, node
+labels, message text, and `Note` text:
+
+- Do **not** put `->` or `-->` inside a label (e.g. a `participant X as A -> B`
+  alias). The sequence parser reads the arrow as a message and the whole diagram
+  fails to render. Use the Unicode arrow `→` instead, or a comma.
+- Do **not** put a semicolon `;` inside a label. Mermaid treats `;` as a
+  statement separator, which breaks parsing. Use a comma or split the label with
+  `<br/>`.
+- Use `<br/>` for line breaks in labels — never a literal `\n`.
+
 ## 2. Choosing the diagram type
 
 | Show… | Use | Mermaid kind |

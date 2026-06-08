@@ -123,7 +123,7 @@ sequenceDiagram
     participant Admin
     participant HSS as HSS (udr_provision)
     Admin->>HSS: PUT /provision/v1/subscribers/{imsi} — auth + profile
-    Note over HSS: validate auth; derive OPc from OP if needed;<br/>store auth + profile
+    Note over HSS: validate auth, derive OPc from OP if needed,<br/>store auth + profile
     HSS-->>Admin: 201 Created — {"imsi":...,"status":"provisioned"}
     Admin->>HSS: GET /provision/v1/subscribers/{imsi}
     Note over HSS: build read view (no ki/opc)
