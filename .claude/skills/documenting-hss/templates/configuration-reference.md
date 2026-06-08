@@ -49,7 +49,7 @@ parameter was introduced or last changed meaning.>
 ## 5. Parameter detail
 
 <For each parameter whose correct use carries constraints, add a subsection.
-Use shall/should/may/can. Mark background as Rationale/Note.>
+Use shall/should/may/can. Set background apart with an admonition of the right type — see ../documentation-style.md §3.>
 
 ### 5.1 `listen`
 
@@ -58,7 +58,8 @@ Use shall/should/may/can. Mark background as Rationale/Note.>
 - For an MME on a separate host, `listen` `shall` include a routable address; an entry bound to `{127,0,0,1}` `shall not` be the only entry.
 - The standard S6a port is `3868`; a non-standard port `may` be used where the peer is configured to match.
 
-> **Rationale:** the default binds to loopback so a fresh checkout is safe by default and exposes no Diameter port to the network.
+> [!NOTE]
+> The default binds to loopback so a fresh checkout is safe by default and exposes no Diameter port to the network.
 
 ## 6. Example
 

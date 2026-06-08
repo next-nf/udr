@@ -14,7 +14,8 @@ Write for an operator or integrator who **did not build the system** and was not
 
 Document *what* the operator configures and does, and *how to confirm it worked*. Do not document internal implementation — that belongs in code and API docs. The reader needs to know what to set and what to expect, not how the function is built.
 
-> **Why this matters.** Misinterpretation caused by a deficient document is a leading cause of incorrect deployment. A single, clear interpretation is the whole job.
+> [!IMPORTANT]
+> Misinterpretation caused by a deficient document is a leading cause of incorrect deployment. A single, clear interpretation is the whole job.
 
 ## 2. Document types
 
@@ -36,7 +37,22 @@ Distinguish the two kinds of text, and keep them visually separate:
 - **Normative** — prescriptive. Tells the operator what they must do to configure or operate the system correctly. This is the part that has to be right.
 - **Informative** — descriptive. Background, rationale, and context that aid understanding but impose no obligation.
 
-Put informative material in clearly marked `> **Note:**` or `> **Rationale:**` blocks, or in a section titled as informative. Never bury an obligation inside background prose, and never let background dilute an obligation. If informative text seems to carry a requirement, it is in the wrong place — move the requirement into normative text.
+Set informative asides apart with a [GitHub admonition](https://docs.github.com/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) where appropriate (they render as callout boxes on GitHub); otherwise use a section titled as informative. Choose the admonition type by intent:
+
+| Admonition | Use for |
+| --- | --- |
+| `> [!NOTE]` | An informative aside or context. |
+| `> [!TIP]` | A recommendation or helpful rationale. |
+| `> [!IMPORTANT]` | Key information the operator should not miss. |
+| `> [!WARNING]` | A risk — the consequence of getting a setting or step wrong. |
+| `> [!CAUTION]` | A hazard — data loss, outage, or security exposure. |
+
+```markdown
+> [!NOTE]
+> The default binds the listener to loopback, so a fresh checkout exposes no port.
+```
+
+Never bury an obligation inside background prose, and never let background dilute an obligation. If informative text seems to carry a requirement, it is in the wrong place — move the requirement into normative text. Admonitions hold informative or cautionary material; they do not carry the primary normative requirements, which belong in the running normative text.
 
 ## 4. Verbal forms
 

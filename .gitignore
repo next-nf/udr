@@ -19,8 +19,10 @@ logs
 rebar3.crashdump
 *~
 
-# Design documents are kept locally but out of the git tree (project decision)
-docs/
+# Design notes and brainstorming specs are kept locally, out of the git tree.
+# Everything else under docs/ (operator manuals, etc.) is tracked.
+docs/design/
+docs/superpowers/
 
 # Generated documentation (rebar3 ex_doc output)
 doc/

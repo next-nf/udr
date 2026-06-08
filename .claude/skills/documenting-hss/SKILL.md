@@ -25,7 +25,7 @@ Copy the matching template from [`templates/`](templates/) and fill it in. Do no
 Work through this while drafting:
 
 - [ ] Written for an operator who did not build the system; states *what* to do, not internal implementation.
-- [ ] **Normative** text (what the operator must do to operate correctly) is separated from **informative** background (Rationale/Note).
+- [ ] **Normative** text (what the operator must do to operate correctly) is separated from **informative** background; informative asides use a GitHub admonition of the right type (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]` — see the style guide §3).
 - [ ] Verbal forms used precisely: `shall` / `should` / `may` / `can` in normative statements. No "must", "has to", "required to". Imperative voice ("Run…", "Set…") only inside numbered procedure steps.
 - [ ] One requirement per statement. Lists, not long sentences.
 - [ ] Every term and abbreviation is defined once, then used verbatim (IMSI, UE, Diameter, S6a, SBI…).
