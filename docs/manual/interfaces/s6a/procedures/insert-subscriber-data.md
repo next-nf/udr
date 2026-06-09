@@ -11,7 +11,7 @@ maps_to:
     answer:  Insert-Subscriber-Data-Answer (IDA)
     command_code: 319
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-ISD — Insert Subscriber Data
@@ -167,4 +167,20 @@ The HSS-side behaviour:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) There is no IDR/IDA support anywhere: command 319 is not in the S6a
+Diameter dictionary, the codec has no IDR builder or IDA decoder, and there is no
+HSS-initiated trigger or send path. (For comparison, the only HSS-initiated send path
+that exists is Cancel Location; see [[S6A-PROC-CL]].)
+
+**Required to implement**
+
+- Dictionary command 319 plus the IDR/IDA AVPs (IDR-Flags, EPS-User-State,
+  EPS-Location-Information, …).
+- A codec `idr_request/1` builder (analogous to `clr_request/1`) and an IDA decoder.
+- An HSS-initiated trigger/effect that turns a subscription-data change into an IDR
+  (the `effect()` type at `apps/udr_hss/src/udr_hss.erl:27` is `cancel_location` only).
+- A `diameter:call` dispatch for `IDR` and IDA result handling.
+
+**Tests:** none.

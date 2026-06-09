@@ -11,7 +11,7 @@ maps_to:
     answer:  Authentication-Information-Answer (AIA)
     command_code: 318
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: partial          # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-AIR — Authentication Information Retrieval
@@ -155,4 +155,44 @@ On receiving an AIR, the HSS:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** partial — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) The core EPS-AKA happy path is implemented end to end with genuine
+MILENAGE crypto. Several Release-16 and error-handling items are absent.
+
+**Implemented**
+
+- AIR decode/dispatch and AIA encode: `apps/udr_diameter/src/udr_diameter_s6a.erl:64`;
+  codec decode `apps/udr_diameter/src/udr_diameter_codec.erl:33`, encode `:56`; HSS
+  logic `apps/udr_hss/src/udr_hss.erl:35` (`handle_air/1`) → `do_air/2` (`:86`).
+- Step 1 user-unknown (5001): `udr_hss.erl:88`.
+- Step 4 vector generation with real MILENAGE f1–f5 / OPc:
+  `apps/udr_crypto/src/udr_crypto.erl:40`, `udr_crypto_milenage.erl:22`.
+- Step 5 KASME derivation bound to the Visited-PLMN: `udr_crypto.erl:49`,
+  `udr_crypto_kdf.erl:31`.
+- Number-Of-Requested-Vectors honoured: `udr_diameter_codec.erl:37`.
+- SQN advance via atomic CAS and AUTS resync (repair to SQN_MS+1): `udr_hss.erl:96`,
+  `:110`; `apps/udr_data/src/udr_data.erl:67`, `:87`.
+- AIA carries the E-UTRAN-Vector list (RAND/XRES/AUTN/KASME) with Result-Code 2001.
+
+**Not yet implemented**
+
+- AIR-Flags / UE-Usage-Type (step 9, Rel-16 Dedicated Core Networks) — absent from
+  dictionary and code.
+- UTRAN/GERAN vectors (Requested-UTRAN-GERAN-Authentication-Info) — E-UTRAN only.
+- Immediate-Response-Preferred — declared in the dictionary but never acted on.
+- Step 3 Visited-PLMN / Origin-Realm access-authorization check.
+- Steps 6/7 error codes `DIAMETER_AUTHORIZATION_REJECTED` (5003) and
+  `DIAMETER_AUTHENTICATION_DATA_UNAVAILABLE` (4181); the 5420 mapping exists but is
+  unreachable on the AIR path.
+- Supported-Features negotiation; Error-Diagnostic.
+
+**Tests:** `apps/udr_hss/test/udr_hss_air_SUITE.erl:46`,
+`apps/udr_hss/test/udr_hss_resync_SUITE.erl:38`,
+`apps/udr_diameter/test/udr_diameter_s6a_SUITE.erl:50`, plus MILENAGE/KDF suites
+under `apps/udr_crypto/test/`.
+
+> [!NOTE]
+> On a successful AUTS resync the implementation also returns fresh vectors in the
+> same AIA, and a failed resync MAC is ignored (vectors still returned). This is a
+> deliberate lenient design choice, not a missing feature.

@@ -11,7 +11,7 @@ maps_to:
     answer:  Purge-UE-Answer (PUA)
     command_code: 321
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: partial          # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-PU — Purge UE
@@ -121,4 +121,33 @@ On receiving a PUR, the HSS:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** partial — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) PUR/PUA is wired end to end with a correct known/unknown distinction,
+but the Release-16 PUR-Flags / EPS-Location / identity-comparison semantics are absent
+and PUA-Flags is a constant.
+
+**Implemented**
+
+- PUR decode/dispatch and PUA encode: `apps/udr_diameter/src/udr_diameter_s6a.erl:65`,
+  `:90`; codec decode `apps/udr_diameter/src/udr_diameter_codec.erl:51`, encode `:74`;
+  HSS logic `apps/udr_hss/src/udr_hss.erl:73` (`handle_pur`/`do_pur`).
+- Step 1 user-unknown (5001): `udr_hss.erl:77`.
+- Step 2 success for a known IMSI; the registration is deleted via
+  `udr_data:delete_3gpp_access_registration/1` (`apps/udr_data/src/udr_data.erl:152`).
+
+**Not yet implemented**
+
+- PUR-Flags not decoded; no Partial Purge (steps 4–6).
+- EPS-Location-Information never received or stored (step 3 onward).
+- No Origin-Host vs stored MME-/SGSN-Identity comparison; PUA-Flags is hardcoded to
+  `[1]` (`udr_diameter_codec.erl:77`), so the per-identity freeze logic (steps 3, 5,
+  6, 7) is absent.
+- No persistent "UE purged in MME/SGSN" flag — the code deletes the registration
+  instead.
+- Supported-Features not handled.
+
+**Tests:** `apps/udr_hss/test/udr_hss_ulr_SUITE.erl:78`, `:86`;
+`apps/udr_hss/test/udr_hss_integration_SUITE.erl:53`;
+`apps/udr_hss/test/udr_hss_dist_SUITE.erl:140`. No wire-level PUR→PUA test asserts the
+PUA-Flags / Result-Code.

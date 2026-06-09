@@ -11,7 +11,7 @@ maps_to:
     answer:  Notify-Answer (NOA)
     command_code: 323
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-NOT — Notification
@@ -163,4 +163,19 @@ On receiving a NOR, the HSS:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) The Notification procedure is entirely absent: command 323 is not in the
+dictionary, no NOR-specific AVPs exist, and the request dispatcher accepts only
+AIR/ULR/PUR (`apps/udr_diameter/src/udr_diameter_s6a.erl:65`) — every other command is
+discarded (`:77`). The key error code `DIAMETER_ERROR_UNKNOWN_SERVING_NODE` (5423) is
+not defined.
+
+**Required to implement**
+
+- Dictionary command 323 plus the NOR/NOA AVPs and NOR-Flags (bits 0–9).
+- Codec NOR decode / NOA encode, a dispatch clause in `udr_diameter_s6a.erl`, and
+  `handle_nor` HSS logic including the serving-node check (5423).
+- The consequent storage actions in `udr_data` / `udr_db`.
+
+**Tests:** none.

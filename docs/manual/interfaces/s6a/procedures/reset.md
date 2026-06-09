@@ -11,7 +11,7 @@ maps_to:
     answer:  Reset-Answer (RSA)
     command_code: 322
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-RST — Reset
@@ -141,4 +141,18 @@ The HSS-side behaviour:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) The Reset procedure is entirely absent: command 322 and the Reset AVPs
+are not in the dictionary, no codec/handler/send path exists, and — critically — there
+is no restart/failure-recovery detection or O&M hook to trigger it.
+
+**Required to implement**
+
+- Dictionary command 322 plus the Reset AVPs (User-Id, Reset-ID, Subscription-Data,
+  Subscription-Data-Deletion).
+- A codec `rsr_request/1` builder and an RSA decoder.
+- A restart-recovery trigger (and/or O&M hook) that fans RSR out to the affected
+  MMEs/SGSNs, plus RSA result handling.
+
+**Tests:** none.

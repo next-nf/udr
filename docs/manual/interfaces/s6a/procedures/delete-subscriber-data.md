@@ -11,7 +11,7 @@ maps_to:
     answer:  Delete-Subscriber-Data-Answer (DSA)
     command_code: 320
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-DSD — Delete Subscriber Data
@@ -137,4 +137,18 @@ The HSS-side behaviour:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) There is no DSR/DSA support anywhere: command 320 is not in the
+dictionary (`apps/udr_diameter/src/diameter_3gpp_s6a.erl` defines only AIR/ULR/PUR/CLR),
+the codec has no DSR builder or DSA decoder, there is no `delete`/`withdraw` HSS effect
+(`effect()` is `cancel_location` only, `apps/udr_hss/src/udr_hss.erl:27`), and no tests.
+
+**Required to implement**
+
+- Dictionary command 320 plus the DSR/DSA AVPs and the DSR-Flags bitmask (bits 0–31).
+- A codec `dsr_request/1` builder and a DSA decoder.
+- An HSS-initiated trigger/effect for data withdrawal, a `diameter:call` dispatch for
+  `DSR`, and DSA result handling.
+
+**Tests:** none.

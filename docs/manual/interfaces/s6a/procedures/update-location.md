@@ -11,7 +11,7 @@ maps_to:
     answer:  Update-Location-Answer (ULA)
     command_code: 316
     application_id: 16777251   # S6a/S6d
-support_status: unevaluated      # filled in a later step
+support_status: partial          # assessed 2026-06-09 against code at main (c605b66)
 ---
 
 # S6A-PROC-UL — Update Location
@@ -193,4 +193,44 @@ On receiving a ULR, the HSS:
 
 ## Support status
 
-_Not yet evaluated. To be completed in a later step._
+**Status:** partial — assessed 2026-06-09 against the code at `main` (c605b66).
+
+(Informative.) The happy path works end to end; nearly all normative validation,
+ULR-Flags semantics, and optional AVPs are absent.
+
+**Implemented**
+
+- ULR decode/dispatch and ULA encode: `apps/udr_diameter/src/udr_diameter_s6a.erl:64`;
+  codec decode `apps/udr_diameter/src/udr_diameter_codec.erl:42`, encode `:64`; HSS
+  logic `apps/udr_hss/src/udr_hss.erl:42` (`handle_ulr/1`) → `do_ulr/1` (`:45`), under
+  the per-IMSI cluster lock.
+- Step 1 user-unknown (5001): `udr_hss.erl:46`.
+- Step 9 (partial): registers the serving MME from the Origin-Host and emits a Cancel
+  Location to the previous MME on change: `udr_hss.erl:51`, `:61`
+  (`clr_effect_if_moved/2`).
+- Step 16 return Subscription-Data + 2001: `udr_hss.erl:58`; codec `:64`.
+- Step 17 Separation Indication: hardcoded `ULA-Flags => [1]`
+  (`udr_diameter_codec.erl:67`).
+
+**Not yet implemented**
+
+- ULR-Flags entirely ignored (Single-Registration, Initial-Attach, Skip-Subscriber-
+  Data, SMS-Only, Dual-Registration-5G).
+- No RAT-type check (5421), roaming/ODB check (5004), EPC-restriction check, or
+  EPS/APN-subscription validation (5420 unreachable); no CAMEL handling (4182).
+- SGSN/S6d cancel branches; UE-purged-flag reset and last-known-location deletion.
+- URRP clearing; Terminal-Information / UE-SRVCC storage; Active-APN / dynamic PDN-GW
+  replacement; SMS-in-MME registration and the ULA "MME Registered for SMS" flag.
+- Subscription-Data is minimal (Subscriber-Status + optional AMBR + one APN config);
+  no Skip-Subscriber-Data, Supported-Features, or Error-Diagnostic.
+
+**Tests:** `apps/udr_hss/test/udr_hss_ulr_SUITE.erl:52`,
+`apps/udr_diameter/test/udr_diameter_codec_SUITE.erl:71`,
+`apps/udr_diameter/test/udr_diameter_SUITE.erl:59` (`ulr_then_clr`),
+`apps/udr_hss/test/udr_hss_dist_SUITE.erl`.
+
+> [!WARNING]
+> The Cancel Location emitted during Update Location uses Cancellation-Type
+> `Subscription Withdrawal (2)`; per [[S6A-PROC-CL]] step 3 it should be `MME Update
+> Procedure`. See `apps/udr_diameter/src/udr_diameter_codec.erl:85`. This is a
+> correctness bug, not just a coverage gap.
