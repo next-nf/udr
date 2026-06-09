@@ -35,7 +35,7 @@
          encode_air_answer_auth_data_unavailable/1,
          idr_roundtrip/1, ida_roundtrip/1,
          dsr_request/1, dsr_roundtrip/1, dsa_roundtrip/1,
-         rsr_roundtrip/1, rsa_roundtrip/1]).
+         rsr_request/1, rsr_roundtrip/1, rsa_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -50,7 +50,7 @@ all() ->
      encode_air_answer_auth_data_unavailable,
      idr_roundtrip, ida_roundtrip,
      dsr_request, dsr_roundtrip, dsa_roundtrip,
-     rsr_roundtrip, rsa_roundtrip].
+     rsr_request, rsr_roundtrip, rsa_roundtrip].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -344,6 +344,12 @@ dsr_roundtrip(_Config) ->
 dsa_roundtrip(_Config) ->
     Decoded = roundtrip('DSA', #{'Result-Code' => [2001]}),
     ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    ok.
+
+rsr_request(_Config) ->
+    Avps = udr_diameter_codec:rsr_request(#{mme_host => <<"mme-a">>, mme_realm => <<"epc">>}),
+    ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
+    ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
     ok.
 
 rsr_roundtrip(_Config) ->

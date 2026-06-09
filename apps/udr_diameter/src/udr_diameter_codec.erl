@@ -21,7 +21,7 @@
 
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
-         clr_request/1, idr_request/1, dsr_request/1]).
+         clr_request/1, idr_request/1, dsr_request/1, rsr_request/1]).
 
 -define(SUCCESS, 2001).
 -define(UNABLE_TO_COMPLY, 5012).
@@ -143,6 +143,13 @@ dsr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm, dsr_flags := F
       'Destination-Host'  => Host,
       'Destination-Realm' => Realm,
       'DSR-Flags' => Flags}.
+
+-doc "Build the RSR request AVPs (HSS-originated) for the reset effect. Reset is not\n"
+     "per-subscriber: a bare RSR (Destination only) resets all impacted subscribers at the node.".
+-spec rsr_request(map()) -> map().
+rsr_request(#{mme_host := Host, mme_realm := Realm}) ->
+    #{'Destination-Host'  => Host,
+      'Destination-Realm' => Realm}.
 
 %% TS 29.272 §7.3.24 Cancellation-Type wire values.
 cancellation_type(mme_update_procedure)     -> 0;
