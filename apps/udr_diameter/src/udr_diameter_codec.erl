@@ -22,6 +22,7 @@
 -include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
 -include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
 -include("s6a_result_codes.hrl").
+-include("s6a_flags.hrl").
 
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
@@ -47,8 +48,8 @@ decode_ulr(#{'User-Name' := Imsi, 'Origin-Host' := Host, 'Origin-Realm' := Realm
       visited_plmn => maps:get('Visited-PLMN-Id', Avps, <<>>),
       ulr_flags    => Flags,
       %% TS 29.272 §7.3.7 ULR-Flags: bit 2 Skip-Subscriber-Data, bit 5 Initial-Attach.
-      skip_subscriber_data => (Flags band 16#4) =/= 0,
-      initial_attach       => (Flags band 16#20) =/= 0}.
+      skip_subscriber_data => (Flags band ?ULR_FLAG_SKIP_SUBSCRIBER_DATA) =/= 0,
+      initial_attach       => (Flags band ?ULR_FLAG_INITIAL_ATTACH) =/= 0}.
 
 -doc "Decode a PUR AVP map into the semantic PUR request.".
 -spec decode_pur(map()) -> map().
@@ -100,7 +101,7 @@ encode_ulr_answer({error, Reason}) ->
 -spec encode_pua_answer(term()) -> map().
 encode_pua_answer({ok, Answer}) when is_map(Answer) ->
     Freeze = case maps:get(freeze_m_tmsi, Answer, false) of
-                 true  -> 1;
+                 true  -> ?PUA_FLAG_FREEZE_M_TMSI;
                  false -> 0
              end,
     #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], 'PUA-Flags' => [Freeze]};
