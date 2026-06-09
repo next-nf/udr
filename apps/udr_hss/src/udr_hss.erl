@@ -20,11 +20,11 @@
            "the transport (udr_diameter) to execute.".
 -import_record(udr_crypto, [eps_av]).
 
--export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1]).
+-export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1, insert_subscriber_data/1]).
 
 -type request() :: #{atom() => term()}.
 -type answer() :: #{atom() => term()}.
--type effect() :: {cancel_location, map()}.
+-type effect() :: {cancel_location, map()} | {insert_subscriber_data, map()}.
 -type error_code() :: user_unknown | unable_to_comply | session_busy | unknown_serving_node | authentication_data_unavailable.
 
 -doc "Handle an Authentication-Information request: return N EPS vectors (and apply an\n"
@@ -64,6 +64,32 @@ do_ulr(#{imsi := Imsi, mme_host := NewHost, mme_realm := NewRealm} = Req) ->
                          false -> #{subscription_data => Profile}
                      end,
             {ok, Answer, Effects}
+    end.
+
+-doc "Decide an HSS-initiated Insert Subscriber Data push: if the subscriber is registered\n"
+     "(and not purged), return an insert_subscriber_data effect carrying the current\n"
+     "Subscription-Data for the serving MME; otherwise {error, not_registered}.".
+-spec insert_subscriber_data(binary()) -> {ok, [effect()]} | {error, not_registered | not_found}.
+insert_subscriber_data(Imsi) ->
+    in_session(Imsi, fun() -> do_isd(Imsi) end).
+
+do_isd(Imsi) ->
+    case udr_data:get_3gpp_access_registration(Imsi) of
+        {ok, #{<<"ue_purged">> := true}} ->
+            {error, not_registered};
+        {ok, #{<<"serving_mme_host">> := Host} = Reg} ->
+            case udr_data:get_subscription_data(Imsi) of
+                {ok, Profile} ->
+                    {ok, [{insert_subscriber_data,
+                           #{imsi      => Imsi,
+                             mme_host  => Host,
+                             mme_realm => maps:get(<<"serving_mme_realm">>, Reg, <<>>),
+                             subscription_data => Profile}}]};
+                {error, not_found} ->
+                    {error, not_found}
+            end;
+        {error, not_registered} ->
+            {error, not_registered}
     end.
 
 clr_effect_if_moved(Imsi, NewHost, CancelType) ->
