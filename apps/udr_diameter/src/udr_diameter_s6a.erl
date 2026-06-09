@@ -25,7 +25,7 @@
 
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3,
-         push_subscriber_data/1, delete_subscriber_data/2]).
+         push_subscriber_data/1, delete_subscriber_data/2, reset/0]).
 
 %% The OTP diameter map-message form is the improper list [MsgName | AvpMap];
 %% dialyzer flags it as improper_list, so suppress that category for the
@@ -131,6 +131,15 @@ delete_subscriber_data(Imsi, Flags) ->
         {error, _} = E -> E
     end.
 
+-doc "HSS-initiated: fan an RSR out to every distinct registered serving node\n"
+     "(fire-and-forget). Used after a recovery event.".
+-spec reset() -> ok | {error, term()}.
+reset() ->
+    case udr_hss:reset() of
+        {ok, Effects} -> run_effects(Effects), ok;
+        {error, _} = E -> E
+    end.
+
 run_effects(Effects) -> lists:foreach(fun run_effect/1, Effects).
 
 run_effect({cancel_location, Info}) ->
@@ -138,7 +147,9 @@ run_effect({cancel_location, Info}) ->
 run_effect({insert_subscriber_data, Info}) ->
     originate('IDR', udr_diameter_codec:idr_request(Info), Info);
 run_effect({delete_subscriber_data, Info}) ->
-    originate('DSR', udr_diameter_codec:dsr_request(Info), Info).
+    originate('DSR', udr_diameter_codec:dsr_request(Info), Info);
+run_effect({reset, Info}) ->
+    originate('RSR', udr_diameter_codec:rsr_request(Info), Info).
 
 %% Originate an HSS-initiated S6a request toward the serving node identified by
 %% Info's mme_host/mme_realm. Fire-and-forget ([detach]); the answer is absorbed
