@@ -11,7 +11,7 @@ maps_to:
     answer:  Notify-Answer (NOA)
     command_code: 323
     application_id: 16777251   # S6a/S6d
-support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
+support_status: implemented      # pragmatic core; assessed 2026-06-09
 ---
 
 # S6A-PROC-NOT — Notification
@@ -163,19 +163,39 @@ On receiving a NOR, the HSS:
 
 ## Support status
 
-**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+**Status:** implemented (pragmatic core) — Cycle ③ 2026-06-09.
 
-(Informative.) The Notification procedure is entirely absent: command 323 is not in the
-dictionary, no NOR-specific AVPs exist, and the request dispatcher accepts only
-AIR/ULR/PUR (`apps/udr_diameter/src/udr_diameter_s6a.erl:65`) — every other command is
-discarded (`:77`). The key error code `DIAMETER_ERROR_UNKNOWN_SERVING_NODE` (5423) is
-not defined.
+(Informative.) Inbound NOR is handled end to end; the notification is validated against
+the registered serving node and the notified Terminal-Information is stored.
 
-**Required to implement**
+**Implemented**
 
-- Dictionary command 323 plus the NOR/NOA AVPs and NOR-Flags (bits 0–9).
-- Codec NOR decode / NOA encode, a dispatch clause in `udr_diameter_s6a.erl`, and
-  `handle_nor` HSS logic including the serving-node check (5423).
-- The consequent storage actions in `udr_data` / `udr_db`.
+- NOR/NOA (323) command and NOR-Flags AVP (1443) added to the dictionary:
+  `apps/udr_diameter/dia/diameter_3gpp_s6a.dia`.
+- NOR decode (IMSI, notifying-node identity from Origin-Host, optional Terminal-Information):
+  `udr_diameter_codec:decode_nor/1`.
+- Serving-node validation: unknown IMSI → `DIAMETER_ERROR_USER_UNKNOWN` (5001); notifying
+  node not the registered serving MME → `DIAMETER_ERROR_UNKNOWN_SERVING_NODE` (5423):
+  `udr_hss:do_nor/1`.
+- Terminal-Information stored on the registration on success: `udr_hss:do_nor/1`.
+- NOA encode including the 5423 experimental-result mapping:
+  `udr_diameter_codec:encode_noa_answer/1`.
+- NOR dispatch (guard, span name, dispatch clause): `udr_diameter_s6a`.
 
-**Tests:** none.
+**Deferred (backlog)**
+
+- NOR-Flags semantics: URRP clearing; UE-reachability and Ready-for-SM indications;
+  removal of MME SMS registration (bit 9).
+- UE-SRVCC-Capability storage.
+- Dynamic PDN GW (MIP6-Agent-Info) storage.
+- Alert-Reason / MNRF reset + MAP-Alert-Service-Centre.
+- Homogeneous-Support-of-IMS-Voice-Over-PS storage.
+- Monitoring-Event-Config-Status handling.
+- EPS-Location-Information storage.
+- Supported-Features.
+
+**Tests:** `apps/udr_hss/test/udr_hss_nor_SUITE.erl` (3 cases:
+`nor_success_stores_terminal_info`, `nor_unknown_imsi`, `nor_unknown_serving_node`),
+`apps/udr_diameter/test/udr_diameter_codec_SUITE.erl` (`nor_roundtrip`, `noa_roundtrip`,
+`nor_decode`, `nor_decode_no_ti`, `encode_noa_answer`, `encode_noa_unknown_serving_node`),
+and the on-wire `nor` case in `apps/udr_diameter/test/udr_diameter_SUITE.erl`.
