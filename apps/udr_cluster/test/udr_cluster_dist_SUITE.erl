@@ -25,32 +25,31 @@ all() -> [cross_node_mutex].
 cross_node_mutex() -> [{timetrap, {seconds, 30}}].
 
 init_per_suite(Config) ->
-    case ensure_distributed() of
-        ok ->
+    %% The CT node must already be distributed -- this suite controls a peer over
+    %% Erlang distribution. We do not start distribution here; run CT distributed,
+    %% e.g. `rebar3 ct --sname test`. Skip cleanly (never fail) otherwise.
+    case erlang:is_alive() of
+        true ->
             Config;
-        {skip, Reason} ->
-            io:format(user, "~n[udr_cluster_dist_SUITE] SKIPPED: ~p~n", [Reason]),
+        false ->
+            Reason = "CT node is not distributed -- run with `rebar3 ct --sname test`",
+            io:format(user, "~n[udr_cluster_dist_SUITE] SKIPPED: ~s~n", [Reason]),
             {skip, Reason}
     end.
 
 end_per_suite(_Config) ->
     ok.
 
-ensure_distributed() ->
-    case net_kernel:start([udr_ct_origin, shortnames]) of
-        {ok, _}                       -> ok;
-        {error, {already_started, _}} -> ok;
-        {error, Reason}               -> {skip, {no_distribution, Reason}}
-    end.
-
 cross_node_mutex(_Config) ->
     Scope = udr_cluster:scope(),
     {ok, _} = application:ensure_all_started(udr_cluster),
-    {ok, Peer, PeerNode} =
-        peer:start_link(#{name => peer:random_name(),
-                          args => ["-setcookie", atom_to_list(erlang:get_cookie())]}),
+    %% Peer boots with the origin's full code path baked in (so udr_cluster/syn
+    %% are loadable) and a generous wait_boot for cold CI runners. ?CT_PEER
+    %% propagates the cookie, so no -setcookie is needed.
+    {ok, Peer, PeerNode} = ?CT_PEER(#{name => ?CT_PEER_NAME(),
+                                      args => ["-pa" | code:get_path()],
+                                      wait_boot => 20000}),
     try
-        ok = erpc:call(PeerNode, code, add_paths, [code:get_path()]),
         {ok, _} = erpc:call(PeerNode, application, ensure_all_started, [udr_cluster]),
 
         Imsi = <<"001010123456789">>,

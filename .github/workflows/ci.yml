@@ -68,8 +68,11 @@ jobs:
         run: rebar3 dialyzer
 
       # GitHub sets CI=true, so the mongo suites run against the service above.
+      # --sname makes the CT node distributed, which the multi-node peer suites
+      # (udr_hss_dist_SUITE, udr_cluster_dist_SUITE) require -- they skip cleanly
+      # rather than fail when the origin is not alive, so this is what runs them.
       - name: Common Test
-        run: rebar3 ct
+        run: rebar3 ct --sname test
 
       - name: Release assembly sanity (covers PRs, which don't build the image)
         run: rebar3 as container release
