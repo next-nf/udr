@@ -1,0 +1,39 @@
+name: demo-s6a
+
+# Runs the self-contained S6a smoke demo: build the HSS, provision a subscriber,
+# and have a Diameter MME client assert AIR/ULR succeed. This is both a runnable
+# demo and a regression gate on the S6a path.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demos/**'
+      - 'apps/**'
+      - 'config/**'
+      - 'rebar.config'
+      - '.github/workflows/demo-s6a.yml'
+  pull_request:
+    paths:
+      - 'demos/**'
+      - 'apps/**'
+      - 'config/**'
+      - 'rebar.config'
+      - '.github/workflows/demo-s6a.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-s6a-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  s6a-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Run the S6a smoke demo
+        working-directory: demos/s6a-smoke
+        run: ./run.sh

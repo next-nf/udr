@@ -1,0 +1,26 @@
+name: udr-open5gs-s6a
+
+# D2a: a real Open5GS MME peers with our HSS over the S6a Diameter interface.
+# The MME's freeDiameter is configured (mme/mme.conf) to connect to our HSS over
+# TCP (No_TLS), with the peer identity and realm matching config/docker.sys.config.
+
+services:
+  hss:
+    # The released HSS image (default in-memory ETS backend; S6a on 3868/TCP).
+    image: ghcr.io/next-nf/udr:latest
+
+  mme:
+    # Open5GS v2.4.0. open5gs-mmed is the EPC MME; it opens an S1AP SCTP socket at
+    # startup (so the host needs the sctp module) and connects to the HSS over S6a.
+    image: docker.io/openverso/open5gs:latest
+    command: ["/opt/open5gs/bin/open5gs-mmed", "-c", "/opt/open5gs/etc/open5gs/mme.yaml"]
+    depends_on:
+      - hss
+    # The stock MME config references the SGW-C and SMF by name. This demo exercises
+    # only S6a, so resolve those names to a throwaway address to satisfy config parsing.
+    extra_hosts:
+      - "sgwc:127.0.0.1"
+      - "smf:127.0.0.1"
+    volumes:
+      # Custom freeDiameter config: peer with our HSS over TCP, realm/identity matched.
+      - ./mme/mme.conf:/opt/open5gs/etc/freeDiameter/mme.conf:ro,Z
