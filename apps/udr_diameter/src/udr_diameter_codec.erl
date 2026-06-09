@@ -21,7 +21,7 @@
 
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
-         clr_request/1]).
+         clr_request/1, idr_request/1]).
 
 -define(SUCCESS, 2001).
 -define(UNABLE_TO_COMPLY, 5012).
@@ -126,6 +126,14 @@ clr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm} = Info) ->
       'Destination-Realm' => Realm,
       'Cancellation-Type' =>
           cancellation_type(maps:get(cancellation_type, Info, mme_update_procedure))}.
+
+-doc "Build the IDR request AVPs (HSS-originated) for the insert_subscriber_data effect.".
+-spec idr_request(map()) -> map().
+idr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm, subscription_data := Profile}) ->
+    #{'User-Name' => Imsi,
+      'Destination-Host'  => Host,
+      'Destination-Realm' => Realm,
+      'Subscription-Data' => [subscription_data(Profile)]}.
 
 %% TS 29.272 §7.3.24 Cancellation-Type wire values.
 cancellation_type(mme_update_procedure)     -> 0;

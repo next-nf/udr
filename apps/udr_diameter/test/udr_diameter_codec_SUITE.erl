@@ -27,7 +27,7 @@
          ulr_decode/1, ulr_decode_flags/1, pur_decode/1, encode_air_answer/1,
          encode_error_user_unknown/1, encode_error_unable/1,
          encode_ulr_answer/1, encode_ulr_answer_skip/1, encode_pua_answer/1,
-         encode_pua_answer_freeze/1, clr_request/1,
+         encode_pua_answer_freeze/1, clr_request/1, idr_request/1,
          ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1,
          nor_roundtrip/1, noa_roundtrip/1,
          nor_decode/1, nor_decode_no_ti/1, encode_noa_answer/1,
@@ -40,7 +40,7 @@ all() ->
      ulr_decode, ulr_decode_flags, pur_decode, encode_air_answer,
      encode_error_user_unknown, encode_error_unable,
      encode_ulr_answer, encode_ulr_answer_skip, encode_pua_answer,
-     encode_pua_answer_freeze, clr_request,
+     encode_pua_answer_freeze, clr_request, idr_request,
      ula_roundtrip, clr_roundtrip, aia_answer_roundtrip,
      nor_roundtrip, noa_roundtrip,
      nor_decode, nor_decode_no_ti, encode_noa_answer,
@@ -281,6 +281,17 @@ encode_air_answer_auth_data_unavailable(_Config) ->
     ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 4181}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
+    ok.
+
+idr_request(_Config) ->
+    Avps = udr_diameter_codec:idr_request(
+             #{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
+               subscription_data => #{<<"apn_config_profile">> => #{<<"context_id">> => 1}}}),
+    ?assertEqual(<<"i">>, maps:get('User-Name', Avps)),
+    ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
+    ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
+    [SD] = maps:get('Subscription-Data', Avps),
+    ?assertEqual([0], maps:get('Subscriber-Status', SD)),
     ok.
 
 idr_roundtrip(_Config) ->
