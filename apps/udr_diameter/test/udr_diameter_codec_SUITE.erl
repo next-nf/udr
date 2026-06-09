@@ -32,7 +32,8 @@
          nor_roundtrip/1, noa_roundtrip/1,
          nor_decode/1, nor_decode_no_ti/1, encode_noa_answer/1,
          encode_noa_unknown_serving_node/1,
-         encode_air_answer_auth_data_unavailable/1]).
+         encode_air_answer_auth_data_unavailable/1,
+         idr_roundtrip/1, ida_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -44,7 +45,8 @@ all() ->
      nor_roundtrip, noa_roundtrip,
      nor_decode, nor_decode_no_ti, encode_noa_answer,
      encode_noa_unknown_serving_node,
-     encode_air_answer_auth_data_unavailable].
+     encode_air_answer_auth_data_unavailable,
+     idr_roundtrip, ida_roundtrip].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -279,4 +281,24 @@ encode_air_answer_auth_data_unavailable(_Config) ->
     ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 4181}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
+    ok.
+
+idr_roundtrip(_Config) ->
+    Common = #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
+               'Origin-Host' => <<"hss">>, 'Origin-Realm' => <<"r">>},
+    Idr = Common#{'Destination-Host' => <<"mme-a">>, 'Destination-Realm' => <<"epc">>,
+                  'User-Name' => <<"001010000000001">>,
+                  'Subscription-Data' => [#{'Subscriber-Status' => [0]}]},
+    Hdr = #diameter_header{version = 1, end_to_end_id = 1, hop_by_hop_id = 1, is_request = true},
+    #diameter_packet{bin = Bin} =
+        diameter_codec:encode(?DICT, #diameter_packet{header = Hdr, msg = ['IDR' | Idr]}),
+    #diameter_packet{msg = ['IDR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
+    ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
+    [SD] = maps:get('Subscription-Data', Decoded),
+    ?assertEqual([0], maps:get('Subscriber-Status', SD)),
+    ok.
+
+ida_roundtrip(_Config) ->
+    Decoded = roundtrip('IDA', #{'Result-Code' => [2001]}),
+    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
     ok.

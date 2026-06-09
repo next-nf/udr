@@ -48,6 +48,8 @@
    KASME                                      1450  OctetString  MV
    PUR-Flags                                  1635  Unsigned32   MV
    NOR-Flags                                  1443  Unsigned32   MV
+   IDR-Flags                                  1490  Unsigned32   MV
+   IDA-Flags                                  1491  Unsigned32   MV
    RAT-Type                                   1032  Unsigned32   MV
    PDN-Type                                   1456  Unsigned32   MV
    Service-Selection                          493   UTF8String   M
@@ -230,6 +232,33 @@
         [ Vendor-Specific-Application-Id ]
         [ Result-Code ]
         [ Experimental-Result ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   IDR ::= < Diameter Header: 319, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Host }
+        { Destination-Realm }
+        { User-Name }
+        [ Subscription-Data ]
+        [ IDR-Flags ]
+        [ Vendor-Specific-Application-Id ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   IDA ::= < Diameter Header: 319, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+        [ IDA-Flags ]
       * [ Failed-AVP ]
       * [ Proxy-Info ]
       * [ Route-Record ]
