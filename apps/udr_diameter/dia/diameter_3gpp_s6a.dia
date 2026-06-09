@@ -47,6 +47,7 @@
    AUTN                                       1449  OctetString  MV
    KASME                                      1450  OctetString  MV
    PUR-Flags                                  1635  Unsigned32   MV
+   NOR-Flags                                  1443  Unsigned32   MV
    RAT-Type                                   1032  Unsigned32   MV
    PDN-Type                                   1456  Unsigned32   MV
    Service-Selection                          493   UTF8String   M
@@ -196,6 +197,32 @@
       * [ Route-Record ]
 
    CLA ::= < Diameter Header: 317, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   NOR ::= < Diameter Header: 323, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Realm }
+        { User-Name }
+        [ Terminal-Information ]
+        [ NOR-Flags ]
+        [ Vendor-Specific-Application-Id ]
+        [ Destination-Host ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   NOA ::= < Diameter Header: 323, PXY >
         < Session-Id >
         { Auth-Session-State }
         { Origin-Host }

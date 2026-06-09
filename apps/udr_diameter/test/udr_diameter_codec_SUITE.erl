@@ -28,7 +28,8 @@
          encode_error_user_unknown/1, encode_error_unable/1,
          encode_ulr_answer/1, encode_ulr_answer_skip/1, encode_pua_answer/1,
          encode_pua_answer_freeze/1, clr_request/1,
-         ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1]).
+         ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1,
+         nor_roundtrip/1, noa_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -36,7 +37,8 @@ all() ->
      encode_error_user_unknown, encode_error_unable,
      encode_ulr_answer, encode_ulr_answer_skip, encode_pua_answer,
      encode_pua_answer_freeze, clr_request,
-     ula_roundtrip, clr_roundtrip, aia_answer_roundtrip].
+     ula_roundtrip, clr_roundtrip, aia_answer_roundtrip,
+     nor_roundtrip, noa_roundtrip].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -213,4 +215,26 @@ aia_answer_roundtrip(_Config) ->
     [#{'E-UTRAN-Vector' := [V]}] = maps:get('Authentication-Info', Decoded),
     ?assertEqual(<<0:128>>, maps:get('RAND', V)),
     ?assertEqual(<<3:256>>, maps:get('KASME', V)),
+    ok.
+
+nor_roundtrip(_Config) ->
+    Common = #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
+               'Origin-Host' => <<"mme-a">>, 'Origin-Realm' => <<"epc">>},
+    Nor = Common#{'Destination-Realm' => <<"hss">>,
+                  'User-Name' => <<"001010000000001">>,
+                  'Terminal-Information' => [#{'IMEI' => <<"3534">>,
+                                              'Software-Version' => <<"01">>}],
+                  'NOR-Flags' => 0},
+    Hdr = #diameter_header{version = 1, end_to_end_id = 1, hop_by_hop_id = 1, is_request = true},
+    #diameter_packet{bin = Bin} =
+        diameter_codec:encode(?DICT, #diameter_packet{header = Hdr, msg = ['NOR' | Nor]}),
+    #diameter_packet{msg = ['NOR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
+    ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
+    [TI] = maps:get('Terminal-Information', Decoded),
+    ?assertEqual([<<"3534">>], maps:get('IMEI', TI)),
+    ok.
+
+noa_roundtrip(_Config) ->
+    Decoded = roundtrip('NOA', #{'Result-Code' => [2001]}),
+    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
     ok.
