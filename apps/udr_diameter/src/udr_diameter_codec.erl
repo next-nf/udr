@@ -78,11 +78,19 @@ encode_pua_answer({error, Reason}) ->
 
 -doc "Build the CLR request AVPs (HSS-originated) for the cancel_location effect.".
 -spec clr_request(map()) -> map().
-clr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm}) ->
+clr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm} = Info) ->
     #{'User-Name' => Imsi,
       'Destination-Host'  => Host,
       'Destination-Realm' => Realm,
-      'Cancellation-Type' => 2}.   %% 2 = SUBSCRIPTION_WITHDRAWAL
+      'Cancellation-Type' =>
+          cancellation_type(maps:get(cancellation_type, Info, mme_update_procedure))}.
+
+%% TS 29.272 §7.3.24 Cancellation-Type wire values.
+cancellation_type(mme_update_procedure)     -> 0;
+cancellation_type(sgsn_update_procedure)    -> 1;
+cancellation_type(subscription_withdrawal)  -> 2;
+cancellation_type(update_procedure_iwf)     -> 3;
+cancellation_type(initial_attach_procedure) -> 4.
 
 %% --- error mapping: 3GPP vendor codes via Experimental-Result; base codes via Result-Code ---
 error_avps(user_unknown) ->

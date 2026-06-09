@@ -119,12 +119,22 @@ encode_pua_answer(_Config) ->
     ok.
 
 clr_request(_Config) ->
-    Avps = udr_diameter_codec:clr_request(#{imsi => <<"i">>, mme_host => <<"mme-a">>,
-                                            mme_realm => <<"epc">>}),
-    ?assertEqual(<<"i">>, maps:get('User-Name', Avps)),
-    ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
-    ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
-    ?assertEqual(2, maps:get('Cancellation-Type', Avps)),
+    %% Default (no cancellation_type) -> MME Update Procedure (0).
+    Def = udr_diameter_codec:clr_request(#{imsi => <<"i">>, mme_host => <<"mme-a">>,
+                                           mme_realm => <<"epc">>}),
+    ?assertEqual(<<"i">>, maps:get('User-Name', Def)),
+    ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Def)),
+    ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Def)),
+    ?assertEqual(0, maps:get('Cancellation-Type', Def)),
+    %% Explicit initial attach -> 4; subscription withdrawal -> 2.
+    Ia = udr_diameter_codec:clr_request(#{imsi => <<"i">>, mme_host => <<"m">>,
+                                          mme_realm => <<"r">>,
+                                          cancellation_type => initial_attach_procedure}),
+    ?assertEqual(4, maps:get('Cancellation-Type', Ia)),
+    Sw = udr_diameter_codec:clr_request(#{imsi => <<"i">>, mme_host => <<"m">>,
+                                          mme_realm => <<"r">>,
+                                          cancellation_type => subscription_withdrawal}),
+    ?assertEqual(2, maps:get('Cancellation-Type', Sw)),
     ok.
 
 %% ---------------------------------------------------------------------------
@@ -164,7 +174,7 @@ clr_roundtrip(_Config) ->
     #diameter_packet{msg = ['CLR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
     ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Decoded)),
-    ?assertEqual(2, maps:get('Cancellation-Type', Decoded)),
+    ?assertEqual(0, maps:get('Cancellation-Type', Decoded)),
     ok.
 
 aia_answer_roundtrip(_Config) ->
