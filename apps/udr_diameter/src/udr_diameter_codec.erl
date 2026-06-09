@@ -76,10 +76,14 @@ encode_ulr_answer({ok, Answer}) when is_map(Answer) ->
 encode_ulr_answer({error, Reason}) ->
     error_avps(Reason).
 
--doc "Build the PUA answer AVPs from handle_pur's result.".
+-doc "Build the PUA answer AVPs from handle_pur's result (PUA-Flags bit 0 = Freeze M-TMSI).".
 -spec encode_pua_answer(term()) -> map().
-encode_pua_answer({ok, _}) ->
-    #{'Result-Code' => [?SUCCESS], 'PUA-Flags' => [1]};
+encode_pua_answer({ok, Answer}) when is_map(Answer) ->
+    Freeze = case maps:get(freeze_m_tmsi, Answer, false) of
+                 true  -> 1;
+                 false -> 0
+             end,
+    #{'Result-Code' => [?SUCCESS], 'PUA-Flags' => [Freeze]};
 encode_pua_answer({error, Reason}) ->
     error_avps(Reason).
 

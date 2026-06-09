@@ -26,14 +26,16 @@
 -export([air_decode/1, air_decode_resync/1, air_decode_default_numvectors/1,
          ulr_decode/1, ulr_decode_flags/1, pur_decode/1, encode_air_answer/1,
          encode_error_user_unknown/1, encode_error_unable/1,
-         encode_ulr_answer/1, encode_ulr_answer_skip/1, encode_pua_answer/1, clr_request/1,
+         encode_ulr_answer/1, encode_ulr_answer_skip/1, encode_pua_answer/1,
+         encode_pua_answer_freeze/1, clr_request/1,
          ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
      ulr_decode, ulr_decode_flags, pur_decode, encode_air_answer,
      encode_error_user_unknown, encode_error_unable,
-     encode_ulr_answer, encode_ulr_answer_skip, encode_pua_answer, clr_request,
+     encode_ulr_answer, encode_ulr_answer_skip, encode_pua_answer,
+     encode_pua_answer_freeze, clr_request,
      ula_roundtrip, clr_roundtrip, aia_answer_roundtrip].
 
 air_decode(_Config) ->
@@ -134,8 +136,15 @@ encode_ulr_answer_skip(_Config) ->
     ok.
 
 encode_pua_answer(_Config) ->
-    Avps = udr_diameter_codec:encode_pua_answer({ok, #{}}),
+    Avps = udr_diameter_codec:encode_pua_answer({ok, #{freeze_m_tmsi => false}}),
     ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([0], maps:get('PUA-Flags', Avps)),
+    ok.
+
+encode_pua_answer_freeze(_Config) ->
+    Avps = udr_diameter_codec:encode_pua_answer({ok, #{freeze_m_tmsi => true}}),
+    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([1], maps:get('PUA-Flags', Avps)),   %% bit 0 = Freeze M-TMSI
     ok.
 
 clr_request(_Config) ->
