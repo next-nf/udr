@@ -20,12 +20,12 @@
            "the transport (udr_diameter) to execute.".
 -import_record(udr_crypto, [eps_av]).
 
--export([handle_air/1, handle_ulr/1, handle_pur/1]).
+-export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1]).
 
 -type request() :: #{atom() => term()}.
 -type answer() :: #{atom() => term()}.
 -type effect() :: {cancel_location, map()}.
--type error_code() :: user_unknown | unable_to_comply | session_busy.
+-type error_code() :: user_unknown | unable_to_comply | session_busy | unknown_serving_node.
 
 -doc "Handle an Authentication-Information request: return N EPS vectors (and apply an\n"
      "AUTS resync if present), advancing the stored SQN. Runs under the per-IMSI lock.\n"
@@ -103,6 +103,33 @@ do_pur(#{imsi := Imsi} = Req) ->
                 _ ->
                     %% Unknown serving node (no registration, or a different MME): no freeze.
                     {ok, #{freeze_m_tmsi => false}, []}
+            end
+    end.
+
+-doc "Handle a Notify request: if the notifying node is the registered serving MME, store\n"
+     "the notified Terminal-Information and succeed; otherwise return unknown_serving_node.\n"
+     "Returns user_unknown for an unprovisioned subscriber. Request keys: imsi, mme_host,\n"
+     "and optional terminal_information.".
+-spec handle_nor(request()) -> {ok, answer(), [effect()]} | {error, error_code()}.
+handle_nor(#{imsi := Imsi} = Req) ->
+    in_session(Imsi, fun() -> do_nor(Req) end).
+
+do_nor(#{imsi := Imsi} = Req) ->
+    Origin = maps:get(mme_host, Req, undefined),
+    case udr_data:get_subscription_data(Imsi) of
+        {error, not_found} ->
+            {error, user_unknown};
+        {ok, _Profile} ->
+            case udr_data:get_3gpp_access_registration(Imsi) of
+                {ok, #{<<"serving_mme_host">> := Origin} = Reg} when Origin =/= undefined ->
+                    Reg1 = case maps:get(terminal_information, Req, undefined) of
+                               undefined -> Reg;
+                               TI        -> Reg#{<<"terminal_information">> => TI}
+                           end,
+                    ok = udr_data:put_3gpp_access_registration(Imsi, Reg1),
+                    {ok, #{}, []};
+                _ ->
+                    {error, unknown_serving_node}
             end
     end.
 
