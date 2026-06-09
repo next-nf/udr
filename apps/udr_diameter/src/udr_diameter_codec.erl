@@ -60,21 +60,21 @@ decode_pur(#{'User-Name' := Imsi, 'Origin-Host' := Host}) ->
 -spec decode_nor(map()) -> map().
 decode_nor(#{'User-Name' := Imsi, 'Origin-Host' := Host} = Avps) ->
     Base = #{imsi => Imsi, mme_host => Host},
-    case maps:get('Terminal-Information', Avps, []) of
-        [TI | _] -> Base#{terminal_information => terminal_info(TI)};
-        _        -> Base
+    case Avps of
+        #{'Terminal-Information' := [TI]} -> Base#{terminal_information => terminal_info(TI)};
+        _                                 -> Base
     end.
 
 %% IMEI / Software-Version are optional AVPs inside the grouped
 %% Terminal-Information, so the map decode delivers each as a 1-element list.
 terminal_info(TI) ->
-    M0 = case maps:get('IMEI', TI, []) of
-             [Imei | _] -> #{<<"imei">> => Imei};
-             _          -> #{}
+    M0 = case TI of
+             #{'IMEI' := [Imei]} -> #{<<"imei">> => Imei};
+             _                   -> #{}
          end,
-    case maps:get('Software-Version', TI, []) of
-        [Sv | _] -> M0#{<<"software_version">> => Sv};
-        _        -> M0
+    case TI of
+        #{'Software-Version' := [Sv]} -> M0#{<<"software_version">> => Sv};
+        _                             -> M0
     end.
 
 -doc "Build the AIA answer AVPs from udr_hss:handle_air/1's result.".
