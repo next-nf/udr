@@ -1,5 +1,10 @@
 # udr — a 3GPP HSS + UDR/UDM in Erlang/OTP
 
+[![CI](https://github.com/next-nf/udr/actions/workflows/ci.yml/badge.svg)](https://github.com/next-nf/udr/actions/workflows/ci.yml)
+[![S6a smoke](https://github.com/next-nf/udr/actions/workflows/demo-s6a.yml/badge.svg)](https://github.com/next-nf/udr/actions/workflows/demo-s6a.yml)
+[![Open5GS interop](https://github.com/next-nf/udr/actions/workflows/demo-open5gs.yml/badge.svg)](https://github.com/next-nf/udr/actions/workflows/demo-open5gs.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
 A converged **Home Subscriber Server (HSS)** and **Unified Data Repository / Unified Data Management (UDR/UDM)** for 4G/LTE and 5G core networks, written in Erlang/OTP.
 
 It speaks the **S6a Diameter** interface that an MME expects from an EPC HSS, and exposes a **5G Service-Based Interface (Nudr-DR)** for subscriber data — backed by a pluggable document store, clustered for per-subscriber consistency, and instrumented with OpenTelemetry out of the box.
@@ -21,6 +26,17 @@ It speaks the **S6a Diameter** interface that an MME expects from an EPC HSS, an
 - **Cluster-aware** — per-IMSI session locking across nodes via [`syn`](https://hex.pm/packages/syn), so concurrent signalling for one subscriber serialises correctly.
 - **Admin provisioning API** — HTTP API to create, read, and delete subscribers by IMSI.
 - **Observability** — OpenTelemetry traces and metrics (OTLP exporter) wired through the Diameter and HTTP paths.
+
+## Interoperability
+
+`udr` is tested against the dominant open-source mobile-core stack — not just its own unit tests:
+
+- An **Open5GS MME** (freeDiameter) establishes the S6a Diameter peer (CER/CEA) with `udr` over TCP — **gated in CI**.
+- A **real LTE attach** — a [**srsRAN**](https://www.srsran.com/) UE → Open5GS MME → `udr` — drives the full S6a control plane end to end: authentication (`AIR`/`AIA`) and location update (`ULR`/`ULA`).
+
+Each result is a reproducible demo in [`demos/`](demos/) (two are CI-gated; the full attach is a one-command local run), and the running interoperability record is in [`docs/manual/compatibility.md`](docs/manual/compatibility.md).
+
+> Testing against the real stack earns its keep: the first real Open5GS `AIR` to reach `udr` surfaced an S6a decode bug the unit tests never hit — captured as a PCAP, fixed, and re-verified against the live attach.
 
 ## Architecture
 
@@ -50,15 +66,35 @@ The HSS logic talks to subscriber data only through `udr_data`, which talks only
 
 ## Quick start
 
-```sh
-# Build
-rebar3 compile
+### Run the published image — no build, no database
 
-# Run an interactive release shell (Diameter, SBI, and provisioning all start)
-rebar3 shell
+```sh
+docker run --rm -p 3868:3868 -p 8080:8080 -p 8090:8090 ghcr.io/next-nf/udr:latest
 ```
 
-With the default configuration the node listens on:
+(or `podman run …` — the image is multi-arch, `amd64` + `arm64`.) Then, in another
+terminal, provision a subscriber and read it back over the 5G SBI:
+
+```sh
+curl -fsS -X PUT -H 'content-type: application/json' \
+  -d '{"auth":{"ki":"465b5ce8b199b49faa5f0a2ee238a6bc","opc":"cd63cb71954a9f4e48a5994e37a02baf","amf":"8000"}}' \
+  http://127.0.0.1:8090/provision/v1/subscribers/001010000000001
+
+curl -fsS http://127.0.0.1:8080/nudr-dr/v1/subscription-data/imsi-001010000000001/authentication-data/authentication-subscription
+```
+
+The default backend is in-memory ETS — nothing else to install. To watch a full S6a
+authentication exchange (AIR/ULR) against a Diameter client, run
+[`demos/s6a-smoke`](demos/s6a-smoke/).
+
+### Build from source
+
+```sh
+rebar3 compile      # build
+rebar3 shell        # interactive node — Diameter, SBI, and provisioning all start
+```
+
+With the default `config/sys.config`, a `rebar3 shell` node listens on:
 
 | Interface | Address | Purpose |
 | --- | --- | --- |
@@ -66,7 +102,7 @@ With the default configuration the node listens on:
 | SBI (Nudr-DR) | `127.0.0.1:8080` | 5G subscriber data |
 | Provisioning | `127.0.0.1:8090` | Admin subscriber management |
 
-The default data backend is **in-memory ETS**, so a fresh `rebar3 shell` is fully functional with no database to install.
+The default data backend is **in-memory ETS**, so a fresh node needs no database.
 
 ## Interfaces
 
