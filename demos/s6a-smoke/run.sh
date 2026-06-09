@@ -12,8 +12,8 @@ IMSI=001010000000001
 cleanup() { docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-echo "==> Building and starting the HSS"
-docker compose up -d --build hss
+echo "==> Starting the HSS (published image)"
+docker compose up -d hss
 
 echo "==> Waiting for the provisioning API on ${PROV_HOST}:${PROV_PORT}"
 i=0

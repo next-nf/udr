@@ -1,13 +1,10 @@
 name: udr-s6a-smoke
 
 services:
-  # The HSS, built from the repository's release image. Binds 0.0.0.0 via
-  # config/docker.sys.config; default in-memory ETS backend (no database).
+  # The HSS, from the published release image (built by the project's CI from
+  # container/Containerfile). Binds 0.0.0.0; default in-memory ETS backend.
   hss:
-    build:
-      context: ../..
-      dockerfile: Dockerfile
-    image: udr-hss:demo
+    image: ghcr.io/next-nf/udr:latest
     ports:
       - "8080:8080"   # SBI (Nudr-DR)
       - "8090:8090"   # provisioning API (run.sh seeds the subscriber here)
