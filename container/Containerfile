@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ---- build stage: official Alpine Erlang/OTP-29 (rebar3 preinstalled) ------
 FROM erlang:29-alpine AS build
 
@@ -12,7 +10,7 @@ WORKDIR /src
 COPY . .
 
 # Prod release (bundled ERTS) with the 0.0.0.0-binding container config.
-RUN rebar3 as docker release
+RUN rebar3 as container release
 
 # ---- runtime stage: minimal Alpine matching the builder's ABI --------------
 # Pinned to the Alpine major.minor that erlang:29-alpine is built on (3.23) so
@@ -24,7 +22,7 @@ RUN apk add --no-cache openssl ncurses-libs libstdc++ libgcc ca-certificates \
  && adduser -D -h /opt/udr udr
 
 WORKDIR /opt/udr
-COPY --from=build --chown=udr:udr /src/_build/docker/rel/udr ./
+COPY --from=build --chown=udr:udr /src/_build/container/rel/udr ./
 
 USER udr
 
