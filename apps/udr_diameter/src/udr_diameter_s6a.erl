@@ -24,12 +24,13 @@
 -include_lib("opentelemetry_api/include/opentelemetry.hrl").
 
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
-         prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
+         prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3,
+         push_subscriber_data/1]).
 
 %% The OTP diameter map-message form is the improper list [MsgName | AvpMap];
 %% dialyzer flags it as improper_list, so suppress that category for the
 %% functions that build such messages.
--dialyzer({no_improper_lists, [reply/5, run_effect/1]}).
+-dialyzer({no_improper_lists, [reply/5, run_effect/1, originate/3]}).
 
 -define(SVC, udr_diameter).
 
@@ -112,22 +113,32 @@ reply(Name, #{'Session-Id' := Sid}, Caps, AnswerAvps, Effects) ->
                'Origin-Host' => OH, 'Origin-Realm' => OR},
     {reply, [Name | maps:merge(Common, AnswerAvps)]}.
 
+-doc "HSS-initiated: push the subscriber's current Subscription-Data to its registered\n"
+     "serving node via IDR (fire-and-forget). {error, not_registered} if not registered.".
+-spec push_subscriber_data(binary()) -> ok | {error, not_registered | not_found}.
+push_subscriber_data(Imsi) ->
+    case udr_hss:insert_subscriber_data(Imsi) of
+        {ok, Effects} -> run_effects(Effects), ok;
+        {error, _} = E -> E
+    end.
+
 run_effects(Effects) -> lists:foreach(fun run_effect/1, Effects).
 
 run_effect({cancel_location, Info}) ->
-    %% Capture the current OTel context so a future child span can link the CLR
-    %% to its originating ULR. The CLR uses diameter:call [detach], so it runs
-    %% out of band; the full child span is future work.
-    Ctx = otel_ctx:get_current(),
-    _ = Ctx,
+    originate('CLR', udr_diameter_codec:clr_request(Info), Info);
+run_effect({insert_subscriber_data, Info}) ->
+    originate('IDR', udr_diameter_codec:idr_request(Info), Info).
+
+%% Originate an HSS-initiated S6a request toward the serving node identified by
+%% Info's mme_host/mme_realm. Fire-and-forget ([detach]); the answer is absorbed
+%% by handle_answer/4.
+originate(Cmd, Avps0, #{mme_host := Host, mme_realm := Realm}) ->
     {ok, OH} = application:get_env(udr_diameter, origin_host),
     {ok, OR} = application:get_env(udr_diameter, origin_realm),
-    Clr0 = udr_diameter_codec:clr_request(Info),
-    Clr = Clr0#{'Session-Id' => list_to_binary(diameter:session_id(OH)),
-                'Auth-Session-State' => 1,
-                'Origin-Host'  => list_to_binary(OH),
-                'Origin-Realm' => list_to_binary(OR)},
-    #{mme_host := Host, mme_realm := Realm} = Info,
+    Avps = Avps0#{'Session-Id' => list_to_binary(diameter:session_id(OH)),
+                  'Auth-Session-State' => 1,
+                  'Origin-Host'  => list_to_binary(OH),
+                  'Origin-Realm' => list_to_binary(OR)},
     Filter = {filter, {all, [{host, Host}, {realm, Realm}]}},
-    _ = diameter:call(?SVC, s6a, ['CLR' | Clr], [detach, Filter]),
+    _ = diameter:call(?SVC, s6a, [Cmd | Avps], [detach, Filter]),
     ok.

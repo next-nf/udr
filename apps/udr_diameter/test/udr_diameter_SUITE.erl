@@ -18,10 +18,10 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
--export([air/1, ulr_then_clr/1, pur/1, nor/1,
+-export([air/1, ulr_then_clr/1, pur/1, nor/1, idr/1,
          common_dictionary_is_rfc6733/1, decode_errors_answer_not_crash/1]).
 
-all() -> [air, ulr_then_clr, pur, nor,
+all() -> [air, ulr_then_clr, pur, nor, idr,
           common_dictionary_is_rfc6733, decode_errors_answer_not_crash].
 
 init_per_suite(Config) ->
@@ -77,6 +77,16 @@ nor(Config) ->
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
     {ok, ['NOA' | Ans]} = udr_diameter_test_mme:nor(Imsi),
     ?assertEqual([2001], maps:get('Result-Code', Ans)),
+    ok.
+
+idr(Config) ->
+    Imsi = ?config(imsi, Config),
+    %% Register this connection's MME (mme-a) as the serving node, then push IDR.
+    {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
+    ok = udr_diameter_s6a:push_subscriber_data(Imsi),
+    ?assertEqual(true, udr_diameter_test_mme:received_idr(Imsi, 2000)),
+    Idr = udr_diameter_test_mme:recorded_idr(Imsi),
+    ?assert(maps:is_key('Subscription-Data', Idr)),
     ok.
 
 %% The HSS must register the RFC 6733 base as its common application (App-Id 0)
