@@ -20,18 +20,12 @@
            "are lists, grouped are nested maps. The single S6a<->semantic conversion point.".
 
 -include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+-include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
+-include("s6a_result_codes.hrl").
 
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
          clr_request/1, idr_request/1, dsr_request/1, rsr_request/1]).
-
--define(SUCCESS, 2001).
--define(UNABLE_TO_COMPLY, 5012).
--define(USER_UNKNOWN, 5001).
--define(UNKNOWN_EPS_SUBSCRIPTION, 5420).
--define(UNKNOWN_SERVING_NODE, 5423).
--define(AUTH_DATA_UNAVAILABLE, 4181).
--define(VENDOR_3GPP, 10415).
 
 -doc "Decode an AIR AVP map into the semantic AIR request for udr_hss:handle_air/1.".
 -spec decode_air(map()) -> map().
@@ -86,7 +80,7 @@ terminal_info(TI) ->
 -spec encode_air_answer(term()) -> map().
 encode_air_answer({ok, #{vectors := Vs}}) ->
     EVs = [eutran_vector(I, V) || {I, V} <- enumerate(Vs)],
-    #{'Result-Code' => [?SUCCESS],
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'],
       'Authentication-Info' => [#{'E-UTRAN-Vector' => EVs}]};
 encode_air_answer({error, Reason}) ->
     error_avps(Reason).
@@ -94,7 +88,7 @@ encode_air_answer({error, Reason}) ->
 -doc "Build the ULA answer AVPs (incl. Subscription-Data unless skipped) from handle_ulr's result.".
 -spec encode_ulr_answer(term()) -> map().
 encode_ulr_answer({ok, Answer}) when is_map(Answer) ->
-    Base = #{'Result-Code' => [?SUCCESS], 'ULA-Flags' => [1]},
+    Base = #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], 'ULA-Flags' => [1]},
     case maps:get(subscription_data, Answer, undefined) of
         undefined -> Base;
         Profile   -> Base#{'Subscription-Data' => [subscription_data(Profile)]}
@@ -109,14 +103,14 @@ encode_pua_answer({ok, Answer}) when is_map(Answer) ->
                  true  -> 1;
                  false -> 0
              end,
-    #{'Result-Code' => [?SUCCESS], 'PUA-Flags' => [Freeze]};
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], 'PUA-Flags' => [Freeze]};
 encode_pua_answer({error, Reason}) ->
     error_avps(Reason).
 
 -doc "Build the NOA answer AVPs from handle_nor's result.".
 -spec encode_noa_answer(term()) -> map().
 encode_noa_answer({ok, _}) ->
-    #{'Result-Code' => [?SUCCESS]};
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS']};
 encode_noa_answer({error, Reason}) ->
     error_avps(Reason).
 
@@ -162,19 +156,19 @@ cancellation_type(initial_attach_procedure) -> ?'S6A_CANCELLATION-TYPE_INITIAL_A
 
 %% --- error mapping: 3GPP vendor codes via Experimental-Result; base codes via Result-Code ---
 error_avps(user_unknown) ->
-    experimental(?USER_UNKNOWN);
+    experimental(?DIAMETER_ERROR_USER_UNKNOWN);
 error_avps(unknown_eps_subscription) ->
-    experimental(?UNKNOWN_EPS_SUBSCRIPTION);
+    experimental(?DIAMETER_ERROR_UNKNOWN_EPS_SUBSCRIPTION);
 error_avps(unknown_serving_node) ->
-    experimental(?UNKNOWN_SERVING_NODE);
+    experimental(?DIAMETER_ERROR_UNKNOWN_SERVING_NODE);
 error_avps(authentication_data_unavailable) ->
-    experimental(?AUTH_DATA_UNAVAILABLE);
+    experimental(?DIAMETER_ERROR_AUTHENTICATION_DATA_UNAVAILABLE);
 error_avps(_Other) ->
-    #{'Result-Code' => [?UNABLE_TO_COMPLY]}.
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_UNABLE_TO_COMPLY']}.
 
 experimental(Code) ->
     #{'Experimental-Result' =>
-          [#{'Vendor-Id' => ?VENDOR_3GPP, 'Experimental-Result-Code' => Code}]}.
+          [#{'Vendor-Id' => ?VENDOR_ID_3GPP, 'Experimental-Result-Code' => Code}]}.
 
 %% --- grouped builders (arity: RAND/XRES/AUTN/KASME bare; Item-Number list) ---
 eutran_vector(I, #{rand := R, xres := X, autn := A, kasme := K}) ->
