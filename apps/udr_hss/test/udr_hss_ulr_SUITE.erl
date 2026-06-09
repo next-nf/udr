@@ -21,7 +21,8 @@
 -export([first_ulr_returns_profile_registers_mme_no_clr/1,
          ulr_new_mme_emits_cancel_location/1,
          ulr_unknown_subscriber_returns_user_unknown/1,
-         pur_clears_registration/1,
+         pur_from_registered_mme_marks_purged_and_freezes/1,
+         pur_from_other_mme_no_freeze/1,
          pur_unknown_subscriber_returns_user_unknown/1,
          ulr_initial_attach_uses_initial_attach_cancellation/1,
          ulr_skip_subscriber_data_omits_profile/1]).
@@ -30,7 +31,8 @@ all() ->
     [first_ulr_returns_profile_registers_mme_no_clr,
      ulr_new_mme_emits_cancel_location,
      ulr_unknown_subscriber_returns_user_unknown,
-     pur_clears_registration,
+     pur_from_registered_mme_marks_purged_and_freezes,
+     pur_from_other_mme_no_freeze,
      pur_unknown_subscriber_returns_user_unknown,
      ulr_initial_attach_uses_initial_attach_cancellation,
      ulr_skip_subscriber_data_omits_profile].
@@ -80,12 +82,24 @@ ulr_unknown_subscriber_returns_user_unknown(_Config) ->
                  udr_hss:handle_ulr(ulr_req(<<"nope">>, <<"mme-a">>))),
     ok.
 
-pur_clears_registration(_Config) ->
+pur_from_registered_mme_marks_purged_and_freezes(_Config) ->
     Imsi = <<"001010000000005">>,
     provision(Imsi),
     {ok, _, []} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
-    {ok, #{}, []} = udr_hss:handle_pur(#{imsi => Imsi}),
-    ?assertEqual({error, not_registered}, udr_data:get_3gpp_access_registration(Imsi)),
+    {ok, Ans, []} = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-a">>}),
+    ?assertEqual(true, maps:get(freeze_m_tmsi, Ans)),
+    {ok, Reg} = udr_data:get_3gpp_access_registration(Imsi),
+    ?assertEqual(true, maps:get(<<"ue_purged">>, Reg)),
+    ok.
+
+pur_from_other_mme_no_freeze(_Config) ->
+    Imsi = <<"001010000000008">>,
+    provision(Imsi),
+    {ok, _, []} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
+    {ok, Ans, []} = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-x">>}),
+    ?assertEqual(false, maps:get(freeze_m_tmsi, Ans)),
+    {ok, Reg} = udr_data:get_3gpp_access_registration(Imsi),
+    ?assertEqual(false, maps:get(<<"ue_purged">>, Reg, false)),
     ok.
 
 pur_unknown_subscriber_returns_user_unknown(_Config) ->

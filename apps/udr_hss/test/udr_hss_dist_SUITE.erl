@@ -107,7 +107,7 @@ end_per_suite(Config) ->
 %% The full attach lifecycle, with each S6a step executed on a DIFFERENT node,
 %% so every assertion depends on state another node wrote to the shared Mongo:
 %% provision on A -> AIR on B -> ULR(mme-a) on A -> ULR(mme-b) on B (which must
-%% see A's registration and emit a CLR for mme-a) -> PUR on A -> B sees it gone.
+%% see A's registration and emit a CLR for mme-a) -> PUR on A -> B sees it purged.
 lifecycle_across_nodes(Config) ->
     A = ?config(node_a, Config),
     B = ?config(node_b, Config),
@@ -137,9 +137,10 @@ lifecycle_across_nodes(Config) ->
     {ok, _, [{cancel_location, #{mme_host := <<"mme-a">>}}]} =
         erpc:call(B, udr_hss, handle_ulr, [U2]),
 
-    {ok, #{}, []} = erpc:call(A, udr_hss, handle_pur, [#{imsi => Imsi}]),
-    ?assertEqual({error, not_registered},
-                 erpc:call(B, udr_data, get_3gpp_access_registration, [Imsi])),
+    {ok, #{freeze_m_tmsi := true}, []} =
+        erpc:call(A, udr_hss, handle_pur, [#{imsi => Imsi, mme_host => <<"mme-b">>}]),
+    {ok, PReg} = erpc:call(B, udr_data, get_3gpp_access_registration, [Imsi]),
+    ?assertEqual(true, maps:get(<<"ue_purged">>, PReg)),
     ok.
 
 %% Both nodes hammer advance_sqn/2 on the SAME subscriber concurrently. Each

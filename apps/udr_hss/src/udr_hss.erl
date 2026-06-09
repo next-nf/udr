@@ -76,19 +76,29 @@ clr_effect_if_moved(Imsi, NewHost, CancelType) ->
             []
     end.
 
--doc "Handle a Purge-UE request: clear the serving-MME registration. Returns user_unknown\n"
-     "for an unprovisioned subscriber (TS 29.272 §7.3.3).".
+-doc "Handle a Purge-UE request: if the purging node is the registered serving MME, mark\n"
+     "the subscriber UE-purged and freeze the M-TMSI; otherwise succeed without freezing.\n"
+     "Returns user_unknown for an unprovisioned subscriber. Request keys: imsi, mme_host.".
 -spec handle_pur(request()) -> {ok, answer(), [effect()]} | {error, error_code()}.
-handle_pur(#{imsi := Imsi}) ->
-    in_session(Imsi, fun() -> do_pur(Imsi) end).
+handle_pur(#{imsi := Imsi} = Req) ->
+    in_session(Imsi, fun() -> do_pur(Req) end).
 
-do_pur(Imsi) ->
+do_pur(#{imsi := Imsi} = Req) ->
+    Origin = maps:get(mme_host, Req, undefined),
     case udr_data:get_subscription_data(Imsi) of
         {error, not_found} ->
             {error, user_unknown};
         {ok, _Profile} ->
-            ok = udr_data:delete_3gpp_access_registration(Imsi),
-            {ok, #{}, []}
+            case udr_data:get_3gpp_access_registration(Imsi) of
+                {ok, #{<<"serving_mme_host">> := Origin} = Reg} when Origin =/= undefined ->
+                    %% Purge from the registered serving MME: mark purged, freeze M-TMSI.
+                    ok = udr_data:put_3gpp_access_registration(
+                           Imsi, Reg#{<<"ue_purged">> => true}),
+                    {ok, #{freeze_m_tmsi => true}, []};
+                _ ->
+                    %% Unknown serving node (no registration, or a different MME): no freeze.
+                    {ok, #{freeze_m_tmsi => false}, []}
+            end
     end.
 
 %% --- procedure logic (runs while holding the lock) ---
