@@ -20,12 +20,10 @@
 -include_lib("diameter/include/diameter.hrl").
 
 -export([all/0, init_per_suite/1, end_per_suite/1]).
--export([air_yields_aia_two_vectors/1, air_unknown_imsi_experimental_5001/1,
-         decode_errors_answer_message_5005/1]).
+-export([air_yields_aia_two_vectors/1, air_unknown_imsi_experimental_5001/1]).
 
 all() ->
-    [air_yields_aia_two_vectors, air_unknown_imsi_experimental_5001,
-     decode_errors_answer_message_5005].
+    [air_yields_aia_two_vectors, air_unknown_imsi_experimental_5001].
 
 init_per_suite(Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -71,11 +69,4 @@ air_unknown_imsi_experimental_5001(_Config) ->
                                         {make_ref(), caps()}),
     ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 5001}],
                  maps:get('Experimental-Result', Ans)),
-    ok.
-
-decode_errors_answer_message_5005(_Config) ->
-    Pkt = #diameter_packet{msg = ['AIR' | #{'Session-Id' => <<"s">>}],
-                           errors = [{5005, x}]},
-    ?assertEqual({answer_message, 5005},
-                 udr_diameter_s6a:handle_request(Pkt, svc, {make_ref(), caps()})),
     ok.

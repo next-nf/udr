@@ -37,9 +37,32 @@ init([]) ->
             [[{'Vendor-Id', 10415}, {'Auth-Application-Id', [16777251]}]]},
          {string_decode, false},
          {decode_format, map},
+         %% Register the RFC 6733 base as the common application (App-Id 0) so the
+         %% negotiated common dictionary (diameter's "Dict0") is RFC 6733, not the
+         %% built-in default RFC 3588. RFC 3588 permits only 3xxx Result-Codes in
+         %% an answer-message; RFC 6733 added 5xxx. The whole error path needs
+         %% this: with the 3588 base, the OTP stack (diameter_traffic:send_A/8)
+         %% rejects a 5xxx answer-message as an invalid_return and kills the
+         %% request process. The s6a dictionary's `@inherits
+         %% diameter_gen_base_rfc6733` does NOT affect Dict0 (it only imports AVP
+         %% type definitions); the common dictionary is selected from the
+         %% applications registered here. 3GPP TS 29.272 clause 7 mandates RFC
+         %% 6733 as the base, so this is also the spec-correct configuration.
+         {application, [{alias, common},
+                        {dictionary, diameter_gen_base_rfc6733},
+                        {module, udr_diameter_s6a}]},
+         %% {request_errors, answer}: let diameter answer a request that fails to
+         %% decode (per the s6a grammar) on its own, with the actual decode error
+         %% (e.g. 5001 DIAMETER_AVP_UNSUPPORTED) and a Failed-AVP. The default
+         %% (answer_3xxx) only auto-answers 3xxx and hands 5xxx decode errors to
+         %% handle_request/3 -- which is exactly the case that crashed against the
+         %% 3588 base. With `answer` + the RFC 6733 common app above, the stack
+         %% generates a correct error answer and handle_request/3 is only ever
+         %% called for requests that decoded cleanly.
          {application, [{alias, s6a},
                         {dictionary, diameter_3gpp_s6a},
-                        {module, udr_diameter_s6a}]}],
+                        {module, udr_diameter_s6a},
+                        {request_errors, answer}]}],
     ok = diameter:start_service(?SVC, SvcOpts),
     ok = lists:foreach(fun add_listener/1, Listen),
     {ok, #{}}.

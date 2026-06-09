@@ -55,11 +55,12 @@ handle_answer(_Pkt, _Req, _Svc, _Peer) -> ok.    %% CLA absorbed
 -spec handle_error(term(), term(), term(), term()) -> ok.
 handle_error(_Reason, _Req, _Svc, _Peer) -> ok.
 
-%% Malformed/missing-AVP request -> clean error answer (don't run decoders on bad input).
+%% Requests that fail to decode never reach here: the service is configured with
+%% {request_errors, answer} (see udr_diameter_srv), so diameter answers them
+%% itself with the actual decode error and a Failed-AVP. This callback only sees
+%% cleanly-decoded requests.
 -spec handle_request(#diameter_packet{}, term(), term()) ->
-    {reply, list()} | {answer_message, pos_integer()} | discard.
-handle_request(#diameter_packet{errors = [_ | _]}, _Svc, _Peer) ->
-    {answer_message, 5005};   %% DIAMETER_MISSING_AVP
+    {reply, list()} | discard.
 handle_request(#diameter_packet{msg = [Cmd | Avps]}, _Svc, {_Ref, Caps})
   when Cmd =:= 'AIR'; Cmd =:= 'ULR'; Cmd =:= 'PUR' ->
     Start = erlang:monotonic_time(),

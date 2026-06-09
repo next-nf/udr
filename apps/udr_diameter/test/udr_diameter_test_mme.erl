@@ -19,7 +19,7 @@
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
 
--export([start/1, stop/0, air/2, ulr/2, pur/1, received_clr/2]).
+-export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, received_clr/2]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
 
@@ -60,7 +60,14 @@ svc_opts() ->
      {decode_format, map},
      {application, [{alias, s6a},
                     {dictionary, diameter_3gpp_s6a},
-                    {module, ?MODULE}]}].
+                    {module, ?MODULE},
+                    %% Deliver answers to handle_answer/4 even when they decode
+                    %% with errors. The HSS's error answer-message (a bare 318
+                    %% answer carrying Result-Code, built in the common dict)
+                    %% lacks AIA-mandatory AVPs, so it decodes with errors here;
+                    %% without this it would be handled internally and bad_air/1
+                    %% could not observe the Result-Code.
+                    {answer_errors, callback}]}].
 
 connect_opts(Port) ->
     [{transport_module, diameter_tcp},
@@ -86,6 +93,25 @@ air(Imsi, N) ->
         'Visited-PLMN-Id' => ?VISITED_PLMN,
         'Requested-EUTRAN-Authentication-Info' =>
             [#{'Number-Of-Requested-Vectors' => [N]}]},
+    diameter:call(?SVC, s6a, ['AIR' | Avps], []).
+
+%% Send an AIR that decodes with errors on the HSS: a well-formed AIR plus one
+%% extra unknown AVP with the Mandatory (M) bit set. The HSS dictionary has no
+%% catch-all `* [ AVP ]` in AIR, so the decode reports the unknown mandatory AVP
+%% in #diameter_packet.errors. The HSS service answers this itself (configured
+%% {request_errors, answer}); this is the real-traffic path that crashed the HSS
+%% request process before the RFC 6733 common application was registered (see
+%% udr_diameter_srv).
+-spec bad_air(binary()) -> {ok, list()} | {error, term()}.
+bad_air(Imsi) ->
+    Unknown = #diameter_avp{code = 16#00FFFFFE, is_mandatory = true,
+                            data = <<0, 0, 0, 0>>},
+    Avps = (common(?OWN_HOST))#{
+        'User-Name' => Imsi,
+        'Visited-PLMN-Id' => ?VISITED_PLMN,
+        'Requested-EUTRAN-Authentication-Info' =>
+            [#{'Number-Of-Requested-Vectors' => [1]}],
+        'AVP' => [Unknown]},
     diameter:call(?SVC, s6a, ['AIR' | Avps], []).
 
 -spec ulr(binary(), binary()) -> {ok, list()} | {error, term()}.
@@ -131,8 +157,33 @@ peer_down(_Svc, _Peer, State) -> State.
 pick_peer([Peer | _], _, _Svc, _St) -> {ok, Peer};
 pick_peer([], _, _Svc, _St)         -> false.
 
+%% Malformed-AIR path (bad_air/1): the message carries an 'AVP' field holding raw
+%% #diameter_avp{} records that the strict encoder would otherwise drop (AIR has
+%% no `* [ AVP ]` slot). Encode the clean AIR ourselves, splice each extra AVP
+%% onto the wire, and fix the 24-bit Message Length. diameter sends a packet whose
+%% #diameter_packet.bin is already set verbatim (diameter_traffic:encode/4), so
+%% the HSS receives bytes its grammar rejects and decodes them with errors.
+prepare_request(#diameter_packet{msg = ['AIR' | #{'AVP' := Extras} = Map]} = Pkt,
+                _Svc, _Peer) ->
+    Clean = Pkt#diameter_packet{msg = ['AIR' | maps:remove('AVP', Map)]},
+    #diameter_packet{bin = Bin} =
+        diameter_codec:encode(diameter_3gpp_s6a,
+                              #{ordered_encode => true, string_decode => false},
+                              Clean),
+    Extra = iolist_to_binary([avp_to_wire(A) || A <- Extras]),
+    <<V:8, Len:24, Rest/binary>> = Bin,
+    Bad = <<V:8, (Len + byte_size(Extra)):24, Rest/binary, Extra/binary>>,
+    {send, Pkt#diameter_packet{bin = Bad}};
 prepare_request(Pkt, _Svc, _Peer)    -> {send, Pkt}.
 prepare_retransmit(Pkt, _Svc, _Peer) -> {send, Pkt}.
+
+%% Encode one raw AVP to wire form (RFC 6733 6: Code|Flags|Length|Data|pad), no
+%% vendor id. Only the M flag is honoured -- enough to force a decode error.
+avp_to_wire(#diameter_avp{code = Code, is_mandatory = M, data = Data}) ->
+    Flags = case M of true -> 16#40; false -> 0 end,
+    Len = 8 + byte_size(Data),
+    Pad = (4 - (Len rem 4)) rem 4,
+    <<Code:32, Flags:8, Len:24, Data/binary, 0:(Pad * 8)>>.
 
 %% diameter:call/4 returns whatever handle_answer/4 returns; hand back {ok, Msg}.
 handle_answer(#diameter_packet{msg = Msg}, _Req, _Svc, _Peer) ->

@@ -18,9 +18,11 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
--export([air/1, ulr_then_clr/1, pur/1]).
+-export([air/1, ulr_then_clr/1, pur/1,
+         common_dictionary_is_rfc6733/1, decode_errors_answer_not_crash/1]).
 
-all() -> [air, ulr_then_clr, pur].
+all() -> [air, ulr_then_clr, pur,
+          common_dictionary_is_rfc6733, decode_errors_answer_not_crash].
 
 init_per_suite(Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -64,3 +66,35 @@ pur(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['PUA' | Ans]} = udr_diameter_test_mme:pur(Imsi),
     ?assertEqual([2001], maps:get('Result-Code', Ans)).
+
+%% The HSS must register the RFC 6733 base as its common application (App-Id 0)
+%% so diameter's negotiated common dictionary ("Dict0") is RFC 6733, not the
+%% built-in default RFC 3588. This is the invariant that makes returning a 5xxx
+%% Result-Code via {answer_message, _} legal (RFC 3588 permits only 3xxx). Guards
+%% against silently dropping the base-app registration in udr_diameter_srv.
+common_dictionary_is_rfc6733(_Config) ->
+    Apps = diameter:service_info(udr_diameter, applications),
+    Common = [A || A <- Apps, proplists:get_value(id, A) =:= 0],
+    ?assertMatch([_], Common),
+    [App] = Common,
+    ?assertEqual(diameter_gen_base_rfc6733,
+                 proplists:get_value(dictionary, App)).
+
+%% End-to-end regression for the AIR crash: a request that fails to decode must
+%% yield a clean Diameter error answer, not crash the HSS request process. The MME
+%% sends an AIR carrying an unknown mandatory AVP; diameter answers it itself
+%% (s6a app configured {request_errors, answer}) with the actual decode error,
+%% DIAMETER_AVP_UNSUPPORTED (5001), in a bare 'answer-message' with a Failed-AVP.
+%%
+%% The original bug: the s6a app's then handle_request/3 answered such requests
+%% with {answer_message, 5005}, which the OTP stack rejected as an invalid_return
+%% against the (then-default) RFC 3588 common dictionary, crashing the request
+%% process so the MME's AIR timed out. A 5xxx code is admissible in an answer-
+%% message only when the common dictionary is not the RFC 3588 base (?BASE /=
+%% Dict0) -- the property the RFC 6733 common-app registration establishes. This
+%% case fails (no clean 5001 'answer-message') if either that registration or the
+%% {request_errors, answer} option regresses.
+decode_errors_answer_not_crash(Config) ->
+    Imsi = ?config(imsi, Config),
+    {ok, ['answer-message' | Ans]} = udr_diameter_test_mme:bad_air(Imsi),
+    ?assertEqual(5001, maps:get('Result-Code', Ans)).
