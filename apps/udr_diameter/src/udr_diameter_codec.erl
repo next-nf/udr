@@ -19,17 +19,14 @@
            "maps. Honors OTP map arity: required-once AVPs are bare, optional/repeatable\n"
            "are lists, grouped are nested maps. The single S6a<->semantic conversion point.".
 
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+-include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
+-include("s6a_result_codes.hrl").
+-include("s6a_flags.hrl").
+
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
          clr_request/1, idr_request/1, dsr_request/1, rsr_request/1]).
-
--define(SUCCESS, 2001).
--define(UNABLE_TO_COMPLY, 5012).
--define(USER_UNKNOWN, 5001).
--define(UNKNOWN_EPS_SUBSCRIPTION, 5420).
--define(UNKNOWN_SERVING_NODE, 5423).
--define(AUTH_DATA_UNAVAILABLE, 4181).
--define(VENDOR_3GPP, 10415).
 
 -doc "Decode an AIR AVP map into the semantic AIR request for udr_hss:handle_air/1.".
 -spec decode_air(map()) -> map().
@@ -51,8 +48,8 @@ decode_ulr(#{'User-Name' := Imsi, 'Origin-Host' := Host, 'Origin-Realm' := Realm
       visited_plmn => maps:get('Visited-PLMN-Id', Avps, <<>>),
       ulr_flags    => Flags,
       %% TS 29.272 §7.3.7 ULR-Flags: bit 2 Skip-Subscriber-Data, bit 5 Initial-Attach.
-      skip_subscriber_data => (Flags band 16#4) =/= 0,
-      initial_attach       => (Flags band 16#20) =/= 0}.
+      skip_subscriber_data => (Flags band ?ULR_FLAG_SKIP_SUBSCRIBER_DATA) =/= 0,
+      initial_attach       => (Flags band ?ULR_FLAG_INITIAL_ATTACH) =/= 0}.
 
 -doc "Decode a PUR AVP map into the semantic PUR request.".
 -spec decode_pur(map()) -> map().
@@ -63,28 +60,28 @@ decode_pur(#{'User-Name' := Imsi, 'Origin-Host' := Host}) ->
 -spec decode_nor(map()) -> map().
 decode_nor(#{'User-Name' := Imsi, 'Origin-Host' := Host} = Avps) ->
     Base = #{imsi => Imsi, mme_host => Host},
-    case maps:get('Terminal-Information', Avps, []) of
-        [TI | _] -> Base#{terminal_information => terminal_info(TI)};
-        _        -> Base
+    case Avps of
+        #{'Terminal-Information' := [TI]} -> Base#{terminal_information => terminal_info(TI)};
+        _                                 -> Base
     end.
 
 %% IMEI / Software-Version are optional AVPs inside the grouped
 %% Terminal-Information, so the map decode delivers each as a 1-element list.
 terminal_info(TI) ->
-    M0 = case maps:get('IMEI', TI, []) of
-             [Imei | _] -> #{<<"imei">> => Imei};
-             _          -> #{}
+    M0 = case TI of
+             #{'IMEI' := [Imei]} -> #{<<"imei">> => Imei};
+             _                   -> #{}
          end,
-    case maps:get('Software-Version', TI, []) of
-        [Sv | _] -> M0#{<<"software_version">> => Sv};
-        _        -> M0
+    case TI of
+        #{'Software-Version' := [Sv]} -> M0#{<<"software_version">> => Sv};
+        _                             -> M0
     end.
 
 -doc "Build the AIA answer AVPs from udr_hss:handle_air/1's result.".
 -spec encode_air_answer(term()) -> map().
 encode_air_answer({ok, #{vectors := Vs}}) ->
     EVs = [eutran_vector(I, V) || {I, V} <- enumerate(Vs)],
-    #{'Result-Code' => [?SUCCESS],
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'],
       'Authentication-Info' => [#{'E-UTRAN-Vector' => EVs}]};
 encode_air_answer({error, Reason}) ->
     error_avps(Reason).
@@ -92,7 +89,7 @@ encode_air_answer({error, Reason}) ->
 -doc "Build the ULA answer AVPs (incl. Subscription-Data unless skipped) from handle_ulr's result.".
 -spec encode_ulr_answer(term()) -> map().
 encode_ulr_answer({ok, Answer}) when is_map(Answer) ->
-    Base = #{'Result-Code' => [?SUCCESS], 'ULA-Flags' => [1]},
+    Base = #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], 'ULA-Flags' => [1]},
     case maps:get(subscription_data, Answer, undefined) of
         undefined -> Base;
         Profile   -> Base#{'Subscription-Data' => [subscription_data(Profile)]}
@@ -104,17 +101,17 @@ encode_ulr_answer({error, Reason}) ->
 -spec encode_pua_answer(term()) -> map().
 encode_pua_answer({ok, Answer}) when is_map(Answer) ->
     Freeze = case maps:get(freeze_m_tmsi, Answer, false) of
-                 true  -> 1;
+                 true  -> ?PUA_FLAG_FREEZE_M_TMSI;
                  false -> 0
              end,
-    #{'Result-Code' => [?SUCCESS], 'PUA-Flags' => [Freeze]};
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], 'PUA-Flags' => [Freeze]};
 encode_pua_answer({error, Reason}) ->
     error_avps(Reason).
 
 -doc "Build the NOA answer AVPs from handle_nor's result.".
 -spec encode_noa_answer(term()) -> map().
 encode_noa_answer({ok, _}) ->
-    #{'Result-Code' => [?SUCCESS]};
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS']};
 encode_noa_answer({error, Reason}) ->
     error_avps(Reason).
 
@@ -152,27 +149,27 @@ rsr_request(#{mme_host := Host, mme_realm := Realm}) ->
       'Destination-Realm' => Realm}.
 
 %% TS 29.272 §7.3.24 Cancellation-Type wire values.
-cancellation_type(mme_update_procedure)     -> 0;
-cancellation_type(sgsn_update_procedure)    -> 1;
-cancellation_type(subscription_withdrawal)  -> 2;
-cancellation_type(update_procedure_iwf)     -> 3;
-cancellation_type(initial_attach_procedure) -> 4.
+cancellation_type(mme_update_procedure)     -> ?'S6A_CANCELLATION-TYPE_MME_UPDATE_PROCEDURE';
+cancellation_type(sgsn_update_procedure)    -> ?'S6A_CANCELLATION-TYPE_SGSN_UPDATE_PROCEDURE';
+cancellation_type(subscription_withdrawal)  -> ?'S6A_CANCELLATION-TYPE_SUBSCRIPTION_WITHDRAWAL';
+cancellation_type(update_procedure_iwf)     -> ?'S6A_CANCELLATION-TYPE_UPDATE_PROCEDURE_IWF';
+cancellation_type(initial_attach_procedure) -> ?'S6A_CANCELLATION-TYPE_INITIAL_ATTACH_PROCEDURE'.
 
 %% --- error mapping: 3GPP vendor codes via Experimental-Result; base codes via Result-Code ---
 error_avps(user_unknown) ->
-    experimental(?USER_UNKNOWN);
+    experimental(?DIAMETER_ERROR_USER_UNKNOWN);
 error_avps(unknown_eps_subscription) ->
-    experimental(?UNKNOWN_EPS_SUBSCRIPTION);
+    experimental(?DIAMETER_ERROR_UNKNOWN_EPS_SUBSCRIPTION);
 error_avps(unknown_serving_node) ->
-    experimental(?UNKNOWN_SERVING_NODE);
+    experimental(?DIAMETER_ERROR_UNKNOWN_SERVING_NODE);
 error_avps(authentication_data_unavailable) ->
-    experimental(?AUTH_DATA_UNAVAILABLE);
+    experimental(?DIAMETER_ERROR_AUTHENTICATION_DATA_UNAVAILABLE);
 error_avps(_Other) ->
-    #{'Result-Code' => [?UNABLE_TO_COMPLY]}.
+    #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_UNABLE_TO_COMPLY']}.
 
 experimental(Code) ->
     #{'Experimental-Result' =>
-          [#{'Vendor-Id' => ?VENDOR_3GPP, 'Experimental-Result-Code' => Code}]}.
+          [#{'Vendor-Id' => ?VENDOR_ID_3GPP, 'Experimental-Result-Code' => Code}]}.
 
 %% --- grouped builders (arity: RAND/XRES/AUTN/KASME bare; Item-Number list) ---
 eutran_vector(I, #{rand := R, xres := X, autn := A, kasme := K}) ->
@@ -180,7 +177,7 @@ eutran_vector(I, #{rand := R, xres := X, autn := A, kasme := K}) ->
 
 %% Minimal Subscription-Data (M1): Subscriber-Status, AMBR, APN-Configuration-Profile.
 subscription_data(Profile) ->
-    Base = #{'Subscriber-Status' => [0]},   %% 0 = SERVICE_GRANTED
+    Base = #{'Subscriber-Status' => [?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED']},
     WithAmbr =
         case maps:get(<<"ambr">>, Profile, undefined) of
             #{<<"ul">> := Ul, <<"dl">> := Dl} ->
@@ -190,11 +187,12 @@ subscription_data(Profile) ->
         end,
     case maps:get(<<"apn_config_profile">>, Profile, undefined) of
         #{<<"context_id">> := Ctx} ->
-            Apn = #{'Context-Identifier' => Ctx, 'PDN-Type' => 0,
+            Apn = #{'Context-Identifier' => Ctx, 'PDN-Type' => ?'S6A_PDN-TYPE_IPV4',
                     'Service-Selection' => <<"default">>},
             WithAmbr#{'APN-Configuration-Profile' =>
                           [#{'Context-Identifier' => Ctx,
-                             'All-APN-Configurations-Included-Indicator' => [0],
+                             'All-APN-Configurations-Included-Indicator' =>
+                                 [?'S6A_ALL-APN-CONFIGURATIONS-INCLUDED-INDICATOR_ALL_APN_CONFIGURATIONS_INCLUDED'],
                              'APN-Configuration' => [Apn]}]};
         _ -> WithAmbr
     end.

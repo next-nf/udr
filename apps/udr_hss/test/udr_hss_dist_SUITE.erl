@@ -51,6 +51,7 @@ podman/mongo:7 is unavailable.
 """.
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("udr_hss_test.hrl").
 
 -export([all/0, suite/0, init_per_suite/1, end_per_suite/1]).
 -export([lifecycle_across_nodes/1, cross_node_sqn_serialization/1,
@@ -69,7 +70,6 @@ podman/mongo:7 is unavailable.
 -define(KI_HEX,  <<"465b5ce8b199b49faa5f0a2ee238a6bc">>).
 -define(OPC_HEX, <<"cd63cb71954a9f4e48a5994e37a02baf">>).
 -define(AMF_HEX, <<"b9b9">>).
--define(PLMN_HEX, <<"00f110">>).
 
 all() ->
     [lifecycle_across_nodes, cross_node_sqn_serialization, cross_node_session_lock].
@@ -112,7 +112,7 @@ lifecycle_across_nodes(Config) ->
     A = ?config(node_a, Config),
     B = ?config(node_b, Config),
     Imsi = <<"001010000000201">>,
-    Plmn = binary:decode_hex(?PLMN_HEX),
+    Plmn = ?VISITED_PLMN_001_01,
 
     ok = erpc:call(A, udr_data, put_authentication_subscription,
                    [Imsi, #{<<"ki">>        => binary:decode_hex(?KI_HEX),

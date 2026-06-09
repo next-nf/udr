@@ -18,6 +18,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
+-include_lib("udr_diameter/include/s6a_result_codes.hrl").
+-include("s6a_test.hrl").
 
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([air_yields_aia_two_vectors/1, air_unknown_imsi_experimental_5001/1]).
@@ -43,7 +46,7 @@ air(Imsi) ->
     ['AIR' | #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
                'Origin-Host' => <<"mme.local">>, 'Origin-Realm' => <<"local">>,
                'Destination-Realm' => <<"local">>, 'User-Name' => Imsi,
-               'Visited-PLMN-Id' => <<0,16#f1,16#10>>,
+               'Visited-PLMN-Id' => ?VISITED_PLMN_001_01,
                'Requested-EUTRAN-Authentication-Info' =>
                    [#{'Number-Of-Requested-Vectors' => [2]}]}].
 
@@ -57,7 +60,7 @@ air_yields_aia_two_vectors(_Config) ->
     {reply, ['AIA' | Ans]} =
         udr_diameter_s6a:handle_request(#diameter_packet{msg = air(Imsi)}, svc,
                                         {make_ref(), caps()}),
-    ?assertEqual([2001], maps:get('Result-Code', Ans)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Ans)),
     ?assertEqual(<<"s1">>, maps:get('Session-Id', Ans)),
     [#{'E-UTRAN-Vector' := EVs}] = maps:get('Authentication-Info', Ans),
     ?assertEqual(2, length(EVs)),
@@ -67,6 +70,7 @@ air_unknown_imsi_experimental_5001(_Config) ->
     {reply, ['AIA' | Ans]} =
         udr_diameter_s6a:handle_request(#diameter_packet{msg = air(<<"nope">>)}, svc,
                                         {make_ref(), caps()}),
-    ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 5001}],
+    ?assertEqual([#{'Vendor-Id' => ?VENDOR_ID_3GPP,
+                    'Experimental-Result-Code' => ?DIAMETER_ERROR_USER_UNKNOWN}],
                  maps:get('Experimental-Result', Ans)),
     ok.
