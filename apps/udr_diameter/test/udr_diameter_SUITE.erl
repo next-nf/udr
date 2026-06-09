@@ -17,6 +17,9 @@
 -module(udr_diameter_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
+-include_lib("udr_diameter/include/s6a_result_codes.hrl").
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([air/1, ulr_then_clr/1, pur/1, nor/1, idr/1, dsr/1, rsr/1,
          common_dictionary_is_rfc6733/1, decode_errors_answer_not_crash/1]).
@@ -52,7 +55,7 @@ end_per_suite(_Config) ->
 air(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['AIA' | Ans]} = udr_diameter_test_mme:air(Imsi, 2),
-    ?assertEqual([2001], maps:get('Result-Code', Ans)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Ans)),
     [#{'E-UTRAN-Vector' := EVs}] = maps:get('Authentication-Info', Ans),
     ?assertEqual(2, length(EVs)).
 
@@ -63,20 +66,20 @@ ulr_then_clr(Config) ->
     ?assertEqual(true, udr_diameter_test_mme:received_clr(Imsi, 2000)),
     Clr = udr_diameter_test_mme:recorded_clr(Imsi),
     %% ULR-Flags carried 0 (no Initial-Attach) -> MME Update Procedure (0).
-    ?assertEqual(0, maps:get('Cancellation-Type', Clr)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_MME_UPDATE_PROCEDURE', maps:get('Cancellation-Type', Clr)),
     ok.
 
 pur(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['PUA' | Ans]} = udr_diameter_test_mme:pur(Imsi),
-    ?assertEqual([2001], maps:get('Result-Code', Ans)).
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Ans)).
 
 nor(Config) ->
     Imsi = ?config(imsi, Config),
     %% Register this connection's MME (mme-a) as the serving node, then notify.
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
     {ok, ['NOA' | Ans]} = udr_diameter_test_mme:nor(Imsi),
-    ?assertEqual([2001], maps:get('Result-Code', Ans)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Ans)),
     ok.
 
 idr(Config) ->
@@ -136,4 +139,4 @@ common_dictionary_is_rfc6733(_Config) ->
 decode_errors_answer_not_crash(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['answer-message' | Ans]} = udr_diameter_test_mme:bad_air(Imsi),
-    ?assertEqual(5001, maps:get('Result-Code', Ans)).
+    ?assertEqual(?'DIAMETER_BASE_RESULT-CODE_AVP_UNSUPPORTED', maps:get('Result-Code', Ans)).
