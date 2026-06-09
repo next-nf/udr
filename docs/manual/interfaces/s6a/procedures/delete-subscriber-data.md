@@ -11,7 +11,7 @@ maps_to:
     answer:  Delete-Subscriber-Data-Answer (DSA)
     command_code: 320
     application_id: 16777251   # S6a/S6d
-support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
+support_status: implemented      # pragmatic core; assessed 2026-06-09
 ---
 
 # S6A-PROC-DSD — Delete Subscriber Data
@@ -137,18 +137,39 @@ The HSS-side behaviour:
 
 ## Support status
 
-**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+**Status:** implemented (pragmatic core) — Cycle ⑥ 2026-06-09.
 
-(Informative.) There is no DSR/DSA support anywhere: command 320 is not in the
-dictionary (`apps/udr_diameter/src/diameter_3gpp_s6a.erl` defines only AIR/ULR/PUR/CLR),
-the codec has no DSR builder or DSA decoder, there is no `delete`/`withdraw` HSS effect
-(`effect()` is `cancel_location` only, `apps/udr_hss/src/udr_hss.erl:27`), and no tests.
+(Informative.) The HSS can withdraw named data classes from a registered subscriber's
+serving MME via DSR and absorb the DSA.
 
-**Required to implement**
+**Implemented**
 
-- Dictionary command 320 plus the DSR/DSA AVPs and the DSR-Flags bitmask (bits 0–31).
-- A codec `dsr_request/1` builder and a DSA decoder.
-- An HSS-initiated trigger/effect for data withdrawal, a `diameter:call` dispatch for
-  `DSR`, and DSA result handling.
+- DSR/DSA (command 320) plus DSR-Flags (AVP 1421) and DSA-Flags (AVP 1422) added to
+  the Diameter dictionary (`apps/udr_diameter/src/diameter_3gpp_s6a.erl`).
+- `udr_diameter_codec:dsr_request/1` — builds the DSR AVP list (User-Name,
+  Destination-Host, Destination-Realm, DSR-Flags bitmask).
+- `udr_hss:delete_subscriber_data/2` — for a registered, non-purged subscriber returns
+  a `delete_subscriber_data` effect carrying the DSR-Flags bitmask; otherwise returns
+  `{error, not_registered}`.
+- `udr_diameter_s6a:delete_subscriber_data/2` — public trigger; sends the DSR via the
+  shared `udr_diameter_s6a:originate/3` outbound helper (fire-and-forget; the DSA is
+  absorbed).
 
-**Tests:** none.
+**Deferred (backlog)**
+
+- Automatic invocation from the provisioning API (provisioning-DELETE path); deferred
+  per Cycle ⑤ precedent.
+- A semantic-atom DSR-Flags helper; the caller currently passes the raw TS 29.272
+  §7.3.25 bitmask as an integer.
+- HSS-side guard forbidding the "Complete APN Configuration Profile Withdrawal" bit
+  toward an MME (requires node-type modelling of the peer).
+- The optional/conditional request AVPs: Trace-Reference, Context-Identifier,
+  TS-Code/SS-Code, SCEF-Id, eDRX-Related-RAT, External-Identifiers.
+- DSA-Flags (SGSN Area Restricted) processing.
+- Supported-Features negotiation.
+
+**Tests:** `apps/udr_hss/test/udr_hss_dsd_SUITE.erl` (3 cases: registered subscriber
+returns effect, purged subscriber returns not_registered, unregistered subscriber returns
+not_registered); `apps/udr_diameter/test/udr_diameter_codec_SUITE.erl` (`dsr_roundtrip`,
+`dsa_roundtrip`, `dsr_request`); `apps/udr_diameter/test/udr_diameter_SUITE.erl` (`dsr`
+on-wire case).
