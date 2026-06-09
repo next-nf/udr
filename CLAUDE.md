@@ -25,6 +25,11 @@ rebar3 ct --suite=apps/udr_hss/test/udr_hss_SUITE --case=air_returns_vectors
 rebar3 ct --dir=apps/udr_data/test
 ```
 
+The **multi-node peer suites** (`udr_hss_dist_SUITE`, `udr_cluster_dist_SUITE`) need a
+distributed CT node — start CT with a name, e.g. `rebar3 ct --sname test`. They do **not**
+start distribution themselves; without `--sname`/`--name` they skip cleanly (they never fail
+the run). CI runs `rebar3 ct --sname test` for this reason.
+
 The CI pipeline (`.github/workflows/ci.yml`) is the source of truth for the expected toolchain: **OTP 29**, **rebar3 3.26.0**. The `test` job runs compile → dialyzer → ct; the image is built separately (see below). Match it before claiming work is done.
 
 The container image is built with **podman/buildah** (not docker). Its assets live in `container/` (`Containerfile`, `container.sys.config`); the build context is the repo root and `.containerignore` controls it. Build locally with `podman build -f container/Containerfile -t udr .`. CI builds multi-arch (linux/amd64 + linux/arm64) on native runners and merges a manifest.

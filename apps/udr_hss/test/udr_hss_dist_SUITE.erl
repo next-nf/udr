@@ -28,21 +28,25 @@ spanning nodes.
 
 ## `?CT_PEER` notes (the tricky bits)
 
-  * `?CT_PEER()` expands to `test_server:start_peer([], ?MODULE, ?FUNCTION_NAME)`,
-    which `peer:start_link`s a node, auto-names it, and propagates the cookie.
-    It puts ONLY the calling module's ebin on the peer's path (`-pa`), so each
-    peer is handed the origin's full code path (`code:add_paths/1`) before any
-    app is started -- otherwise `syn`/`mongodb`/`udr_*` are not loadable there.
-  * The origin must be a distributed node for the standard (distribution)
-    control channel; `rebar3 ct` starts an undistributed node, so we
-    `net_kernel:start/2` in `init_per_suite` and skip if that is not possible.
-  * `peer:start_link` links the peer's control process to the *caller*. In
-    `init_per_suite` that caller is a short-lived process, so we `unlink/1` the
-    peer to keep it alive for the whole suite and stop it in `end_per_suite`.
+  * The origin (the CT node) must already be a *distributed* node, because
+    `?CT_PEER` controls the peers over the Erlang distribution channel
+    (`peer:start_link` errors with `not_alive` otherwise). We do NOT start
+    distribution from inside the suite -- run CT distributed instead, e.g.
+    `rebar3 ct --sname test`. When the origin is not alive the suite skips
+    cleanly; it never fails the run.
+  * Each peer boots with the origin's full code path baked into its startup
+    args (`args => ["-pa" | code:get_path()]`), so `syn`/`mongodb`/`udr_*` are
+    loadable before any app starts -- no post-boot `code:add_paths/1` round trip.
+  * `wait_boot => 20000`: a peer boot on a cold/loaded CI runner can exceed the
+    15s `peer` default, and a boot timeout *exits the starter* (it is not a
+    clean skip and trips the CT exit code), so we give it generous headroom.
+  * `?CT_PEER` (`peer:start_link`) links the peer's control process to the
+    *caller*. In `init_per_suite` that caller is short-lived, so we `unlink/1`
+    the peer to keep it alive for the whole suite and stop it in `end_per_suite`.
   * Default `connect_all` meshes the two peers, so the `syn` `udr_session` scope
     spans both worker nodes.
 
-The suite is skipped (not failed) when distribution cannot start or when
+The suite is skipped (not failed) when the origin is not distributed or when
 podman/mongo:7 is unavailable.
 """.
 -include_lib("common_test/include/ct.hrl").
@@ -76,10 +80,10 @@ suite() -> [{timetrap, {minutes, 5}}].
 %% --- suite fixture: distribution, mongo, two worker nodes -----------------
 
 init_per_suite(Config) ->
-    case ensure_distributed() of
-        {skip, _} = Skip ->
-            Skip;
-        ok ->
+    case erlang:is_alive() of
+        false ->
+            {skip, "CT node is not distributed -- run with `rebar3 ct --sname test`"};
+        true ->
             case udr_mongo_ct:start(?CONTAINER, ?PORT) of
                 {skip, Reason} ->
                     {skip, Reason};
@@ -195,12 +199,13 @@ cross_node_session_lock(Config) ->
 
 %% --- worker node lifecycle ------------------------------------------------
 
-%% Start one peer worker node, give it the full code path, point it at the
-%% shared Mongo (Opts), and bring up the udr_hss stack on it.
+%% Start one peer worker node (full code path baked into its boot args), point
+%% it at the shared Mongo (Opts), and bring up the udr_hss stack on it.
 start_worker(Opts) ->
-    {ok, Peer, Node} = ?CT_PEER(),
+    {ok, Peer, Node} = ?CT_PEER(#{name => ?CT_PEER_NAME(),
+                                  args => ["-pa" | code:get_path()],
+                                  wait_boot => 20000}),
     unlink(Peer),
-    ok = erpc:call(Node, code, add_paths, [code:get_path()]),
     ok = erpc:call(Node, ?MODULE, configure_backend, [Opts]),
     {ok, _Started} = erpc:call(Node, application, ensure_all_started, [udr_hss]),
     {Node, Peer}.
@@ -261,15 +266,6 @@ await_visible(Observer, Registrar, Imsi) ->
     _ = erpc:call(Registrar, syn, unregister, [Scope, Imsi]),
     exit(Holder, kill),
     Res.
-
-%% --- distribution ---------------------------------------------------------
-
-ensure_distributed() ->
-    case net_kernel:start(udr_dist_origin, #{name_domain => shortnames}) of
-        {ok, _}                       -> ok;
-        {error, {already_started, _}} -> ok;
-        {error, Reason}               -> {skip, {no_distribution, Reason}}
-    end.
 
 wait_until(_F, 0) -> erlang:error(timeout);
 wait_until(F, N) ->
