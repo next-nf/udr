@@ -19,6 +19,8 @@
            "maps. Honors OTP map arity: required-once AVPs are bare, optional/repeatable\n"
            "are lists, grouped are nested maps. The single S6a<->semantic conversion point.".
 
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
          clr_request/1, idr_request/1, dsr_request/1, rsr_request/1]).
@@ -152,11 +154,11 @@ rsr_request(#{mme_host := Host, mme_realm := Realm}) ->
       'Destination-Realm' => Realm}.
 
 %% TS 29.272 §7.3.24 Cancellation-Type wire values.
-cancellation_type(mme_update_procedure)     -> 0;
-cancellation_type(sgsn_update_procedure)    -> 1;
-cancellation_type(subscription_withdrawal)  -> 2;
-cancellation_type(update_procedure_iwf)     -> 3;
-cancellation_type(initial_attach_procedure) -> 4.
+cancellation_type(mme_update_procedure)     -> ?'S6A_CANCELLATION-TYPE_MME_UPDATE_PROCEDURE';
+cancellation_type(sgsn_update_procedure)    -> ?'S6A_CANCELLATION-TYPE_SGSN_UPDATE_PROCEDURE';
+cancellation_type(subscription_withdrawal)  -> ?'S6A_CANCELLATION-TYPE_SUBSCRIPTION_WITHDRAWAL';
+cancellation_type(update_procedure_iwf)     -> ?'S6A_CANCELLATION-TYPE_UPDATE_PROCEDURE_IWF';
+cancellation_type(initial_attach_procedure) -> ?'S6A_CANCELLATION-TYPE_INITIAL_ATTACH_PROCEDURE'.
 
 %% --- error mapping: 3GPP vendor codes via Experimental-Result; base codes via Result-Code ---
 error_avps(user_unknown) ->
@@ -180,7 +182,7 @@ eutran_vector(I, #{rand := R, xres := X, autn := A, kasme := K}) ->
 
 %% Minimal Subscription-Data (M1): Subscriber-Status, AMBR, APN-Configuration-Profile.
 subscription_data(Profile) ->
-    Base = #{'Subscriber-Status' => [0]},   %% 0 = SERVICE_GRANTED
+    Base = #{'Subscriber-Status' => [?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED']},
     WithAmbr =
         case maps:get(<<"ambr">>, Profile, undefined) of
             #{<<"ul">> := Ul, <<"dl">> := Dl} ->
@@ -190,11 +192,12 @@ subscription_data(Profile) ->
         end,
     case maps:get(<<"apn_config_profile">>, Profile, undefined) of
         #{<<"context_id">> := Ctx} ->
-            Apn = #{'Context-Identifier' => Ctx, 'PDN-Type' => 0,
+            Apn = #{'Context-Identifier' => Ctx, 'PDN-Type' => ?'S6A_PDN-TYPE_IPV4',
                     'Service-Selection' => <<"default">>},
             WithAmbr#{'APN-Configuration-Profile' =>
                           [#{'Context-Identifier' => Ctx,
-                             'All-APN-Configurations-Included-Indicator' => [0],
+                             'All-APN-Configurations-Included-Indicator' =>
+                                 [?'S6A_ALL-APN-CONFIGURATIONS-INCLUDED-INDICATOR_ALL_APN_CONFIGURATIONS_INCLUDED'],
                              'APN-Configuration' => [Apn]}]};
         _ -> WithAmbr
     end.

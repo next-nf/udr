@@ -34,10 +34,10 @@
    Authentication-Info                        1413  Grouped      MV
    E-UTRAN-Vector                             1414  Grouped      MV
    Item-Number                                1419  Unsigned32   MV
-   Cancellation-Type                          1420  Unsigned32   MV
+   Cancellation-Type                          1420  Enumerated   MV
    Context-Identifier                         1423  Unsigned32   MV
-   Subscriber-Status                          1424  Unsigned32   MV
-   All-APN-Configurations-Included-Indicator  1428  Unsigned32   MV
+   Subscriber-Status                          1424  Enumerated   MV
+   All-APN-Configurations-Included-Indicator  1428  Enumerated   MV
    APN-Configuration-Profile                  1429  Grouped      MV
    APN-Configuration                          1430  Grouped      MV
    AMBR                                       1435  Grouped      MV
@@ -52,8 +52,8 @@
    IDA-Flags                                  1491  Unsigned32   MV
    DSR-Flags                                  1421  Unsigned32   MV
    DSA-Flags                                  1422  Unsigned32   MV
-   RAT-Type                                   1032  Unsigned32   MV
-   PDN-Type                                   1456  Unsigned32   MV
+   RAT-Type                                   1032  Enumerated   MV
+   PDN-Type                                   1456  Enumerated   MV
    Service-Selection                          493   UTF8String   M
    Max-Requested-Bandwidth-UL                 516   Unsigned32   MV
    Max-Requested-Bandwidth-DL                 515   Unsigned32   MV
@@ -61,6 +61,37 @@
    IMEI                                       1402  UTF8String   MV
    Software-Version                           1403  UTF8String   MV
    UE-SRVCC-Capability                        1615  Unsigned32   V
+
+@enum Cancellation-Type
+   MME_UPDATE_PROCEDURE        0
+   SGSN_UPDATE_PROCEDURE       1
+   SUBSCRIPTION_WITHDRAWAL     2
+   UPDATE_PROCEDURE_IWF        3
+   INITIAL_ATTACH_PROCEDURE    4
+
+@enum RAT-Type
+   WLAN              0
+   VIRTUAL           1
+   UTRAN          1000
+   GERAN          1001
+   GAN            1002
+   HSPA_EVOLUTION 1003
+   EUTRAN         1004
+   EUTRAN_NB_IOT  1005
+
+@enum Subscriber-Status
+   SERVICE_GRANTED             0
+   OPERATOR_DETERMINED_BARRING 1
+
+@enum All-APN-Configurations-Included-Indicator
+   ALL_APN_CONFIGURATIONS_INCLUDED                0
+   MODIFIED_ADDED_APN_CONFIGURATIONS_INCLUDED     1
+
+@enum PDN-Type
+   IPV4         0
+   IPV6         1
+   IPV4V6       2
+   IPV4_OR_IPV6 3
 
 @grouped
    Requested-EUTRAN-Authentication-Info ::= < AVP Header: 1408 10415 >
