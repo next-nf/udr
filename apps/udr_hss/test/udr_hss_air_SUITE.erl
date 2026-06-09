@@ -19,11 +19,15 @@
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([air_returns_vectors_and_advances_sqn/1,
-         air_unknown_imsi_returns_user_unknown/1]).
+         air_unknown_imsi_returns_user_unknown/1,
+         air_incomplete_auth_material_returns_auth_data_unavailable/1,
+         air_unknown_algorithm_returns_auth_data_unavailable/1]).
 
 all() ->
     [air_returns_vectors_and_advances_sqn,
-     air_unknown_imsi_returns_user_unknown].
+     air_unknown_imsi_returns_user_unknown,
+     air_incomplete_auth_material_returns_auth_data_unavailable,
+     air_unknown_algorithm_returns_auth_data_unavailable].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -66,6 +70,30 @@ air_returns_vectors_and_advances_sqn(_Config) ->
 air_unknown_imsi_returns_user_unknown(_Config) ->
     ?assertEqual({error, user_unknown},
                  udr_hss:handle_air(#{imsi => <<"nope">>,
+                                      visited_plmn => binary:decode_hex(<<"00f110">>),
+                                      num_vectors => 1})),
+    ok.
+
+air_incomplete_auth_material_returns_auth_data_unavailable(_Config) ->
+    Imsi = <<"001010000000010">>,
+    %% Stored subscription is missing ki/opc/amf (only an SQN counter present).
+    ok = udr_data:put_authentication_subscription(Imsi, #{<<"sqn">> => 0}),
+    ?assertEqual({error, authentication_data_unavailable},
+                 udr_hss:handle_air(#{imsi => Imsi,
+                                      visited_plmn => binary:decode_hex(<<"00f110">>),
+                                      num_vectors => 1})),
+    ok.
+
+air_unknown_algorithm_returns_auth_data_unavailable(_Config) ->
+    Imsi = <<"001010000000011">>,
+    ok = udr_data:put_authentication_subscription(Imsi, #{
+        <<"ki">>        => binary:decode_hex(<<"465b5ce8b199b49faa5f0a2ee238a6bc">>),
+        <<"opc">>       => binary:decode_hex(<<"cd63cb71954a9f4e48a5994e37a02baf">>),
+        <<"algorithm">> => <<"nonesuch">>,
+        <<"amf">>       => binary:decode_hex(<<"b9b9">>),
+        <<"sqn">>       => 0}),
+    ?assertEqual({error, authentication_data_unavailable},
+                 udr_hss:handle_air(#{imsi => Imsi,
                                       visited_plmn => binary:decode_hex(<<"00f110">>),
                                       num_vectors => 1})),
     ok.

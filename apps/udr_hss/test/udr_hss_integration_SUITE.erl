@@ -50,6 +50,8 @@ s6a_core_attach(_Config) ->
     {ok, #{subscription_data := _}, []} = udr_hss:handle_ulr(U1),
     U2 = U1#{mme_host => <<"mme-b">>},
     {ok, _, [{cancel_location, #{mme_host := <<"mme-a">>}}]} = udr_hss:handle_ulr(U2),
-    {ok, #{}, []} = udr_hss:handle_pur(#{imsi => Imsi}),
-    ?assertEqual({error, not_registered}, udr_data:get_3gpp_access_registration(Imsi)),
+    {ok, #{freeze_m_tmsi := true}, []} =
+        udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-b">>}),
+    {ok, PReg} = udr_data:get_3gpp_access_registration(Imsi),
+    ?assertEqual(true, maps:get(<<"ue_purged">>, PReg)),
     ok.

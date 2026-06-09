@@ -21,15 +21,23 @@
 -export([first_ulr_returns_profile_registers_mme_no_clr/1,
          ulr_new_mme_emits_cancel_location/1,
          ulr_unknown_subscriber_returns_user_unknown/1,
-         pur_clears_registration/1,
-         pur_unknown_subscriber_returns_user_unknown/1]).
+         pur_from_registered_mme_marks_purged_and_freezes/1,
+         pur_from_other_mme_no_freeze/1,
+         pur_unknown_subscriber_returns_user_unknown/1,
+         ulr_initial_attach_uses_initial_attach_cancellation/1,
+         ulr_skip_subscriber_data_omits_profile/1,
+         ulr_after_purge_suppresses_clr/1]).
 
 all() ->
     [first_ulr_returns_profile_registers_mme_no_clr,
      ulr_new_mme_emits_cancel_location,
      ulr_unknown_subscriber_returns_user_unknown,
-     pur_clears_registration,
-     pur_unknown_subscriber_returns_user_unknown].
+     pur_from_registered_mme_marks_purged_and_freezes,
+     pur_from_other_mme_no_freeze,
+     pur_unknown_subscriber_returns_user_unknown,
+     ulr_initial_attach_uses_initial_attach_cancellation,
+     ulr_skip_subscriber_data_omits_profile,
+     ulr_after_purge_suppresses_clr].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -65,7 +73,8 @@ ulr_new_mme_emits_cancel_location(_Config) ->
     provision(Imsi),
     {ok, _, []} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
     {ok, _, Effects} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-b">>)),
-    ?assertMatch([{cancel_location, #{imsi := Imsi, mme_host := <<"mme-a">>}}], Effects),
+    ?assertMatch([{cancel_location, #{imsi := Imsi, mme_host := <<"mme-a">>,
+                                      cancellation_type := mme_update_procedure}}], Effects),
     {ok, Reg} = udr_data:get_3gpp_access_registration(Imsi),
     ?assertEqual(<<"mme-b">>, maps:get(<<"serving_mme_host">>, Reg)),
     ok.
@@ -75,15 +84,56 @@ ulr_unknown_subscriber_returns_user_unknown(_Config) ->
                  udr_hss:handle_ulr(ulr_req(<<"nope">>, <<"mme-a">>))),
     ok.
 
-pur_clears_registration(_Config) ->
+pur_from_registered_mme_marks_purged_and_freezes(_Config) ->
     Imsi = <<"001010000000005">>,
     provision(Imsi),
     {ok, _, []} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
-    {ok, #{}, []} = udr_hss:handle_pur(#{imsi => Imsi}),
-    ?assertEqual({error, not_registered}, udr_data:get_3gpp_access_registration(Imsi)),
+    {ok, Ans, []} = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-a">>}),
+    ?assertEqual(true, maps:get(freeze_m_tmsi, Ans)),
+    {ok, Reg} = udr_data:get_3gpp_access_registration(Imsi),
+    ?assertEqual(true, maps:get(<<"ue_purged">>, Reg)),
+    ok.
+
+pur_from_other_mme_no_freeze(_Config) ->
+    Imsi = <<"001010000000008">>,
+    provision(Imsi),
+    {ok, _, []} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
+    {ok, Ans, []} = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-x">>}),
+    ?assertEqual(false, maps:get(freeze_m_tmsi, Ans)),
+    {ok, Reg} = udr_data:get_3gpp_access_registration(Imsi),
+    ?assertEqual(false, maps:get(<<"ue_purged">>, Reg, false)),
     ok.
 
 pur_unknown_subscriber_returns_user_unknown(_Config) ->
     ?assertEqual({error, user_unknown},
                  udr_hss:handle_pur(#{imsi => <<"nope-pur">>})),
+    ok.
+
+ulr_initial_attach_uses_initial_attach_cancellation(_Config) ->
+    Imsi = <<"001010000000006">>,
+    provision(Imsi),
+    {ok, _, []} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
+    Req = (ulr_req(Imsi, <<"mme-b">>))#{initial_attach => true},
+    {ok, _, Effects} = udr_hss:handle_ulr(Req),
+    ?assertMatch([{cancel_location, #{cancellation_type := initial_attach_procedure}}], Effects),
+    ok.
+
+ulr_skip_subscriber_data_omits_profile(_Config) ->
+    Imsi = <<"001010000000007">>,
+    provision(Imsi),
+    Req = (ulr_req(Imsi, <<"mme-a">>))#{skip_subscriber_data => true},
+    {ok, Ans, _} = udr_hss:handle_ulr(Req),
+    ?assertEqual(error, maps:find(subscription_data, Ans)),
+    ok.
+
+ulr_after_purge_suppresses_clr(_Config) ->
+    Imsi = <<"001010000000009">>,
+    provision(Imsi),
+    {ok, _, []}  = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-a">>)),
+    {ok, _, []}  = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-a">>}),
+    {ok, _, Eff} = udr_hss:handle_ulr(ulr_req(Imsi, <<"mme-b">>)),
+    ?assertEqual([], Eff),
+    %% Re-registration clears the purged flag.
+    {ok, Reg} = udr_data:get_3gpp_access_registration(Imsi),
+    ?assertEqual(false, maps:get(<<"ue_purged">>, Reg, false)),
     ok.

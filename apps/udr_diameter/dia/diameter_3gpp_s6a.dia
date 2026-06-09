@@ -47,6 +47,11 @@
    AUTN                                       1449  OctetString  MV
    KASME                                      1450  OctetString  MV
    PUR-Flags                                  1635  Unsigned32   MV
+   NOR-Flags                                  1443  Unsigned32   MV
+   IDR-Flags                                  1490  Unsigned32   MV
+   IDA-Flags                                  1491  Unsigned32   MV
+   DSR-Flags                                  1421  Unsigned32   MV
+   DSA-Flags                                  1422  Unsigned32   MV
    RAT-Type                                   1032  Unsigned32   MV
    PDN-Type                                   1456  Unsigned32   MV
    Service-Selection                          493   UTF8String   M
@@ -196,6 +201,108 @@
       * [ Route-Record ]
 
    CLA ::= < Diameter Header: 317, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   NOR ::= < Diameter Header: 323, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Realm }
+        { User-Name }
+        [ Terminal-Information ]
+        [ NOR-Flags ]
+        [ Vendor-Specific-Application-Id ]
+        [ Destination-Host ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   NOA ::= < Diameter Header: 323, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   IDR ::= < Diameter Header: 319, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Host }
+        { Destination-Realm }
+        { User-Name }
+        [ Subscription-Data ]
+        [ IDR-Flags ]
+        [ Vendor-Specific-Application-Id ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   IDA ::= < Diameter Header: 319, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+        [ IDA-Flags ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   DSR ::= < Diameter Header: 320, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Host }
+        { Destination-Realm }
+        { User-Name }
+        { DSR-Flags }
+        [ Vendor-Specific-Application-Id ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   DSA ::= < Diameter Header: 320, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+        [ DSA-Flags ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   RSR ::= < Diameter Header: 322, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Host }
+        { Destination-Realm }
+        [ Vendor-Specific-Application-Id ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   RSA ::= < Diameter Header: 322, PXY >
         < Session-Id >
         { Auth-Session-State }
         { Origin-Host }
