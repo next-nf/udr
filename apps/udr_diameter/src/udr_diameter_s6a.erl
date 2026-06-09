@@ -62,7 +62,7 @@ handle_error(_Reason, _Req, _Svc, _Peer) -> ok.
 -spec handle_request(#diameter_packet{}, term(), term()) ->
     {reply, list()} | discard.
 handle_request(#diameter_packet{msg = [Cmd | Avps]}, _Svc, {_Ref, Caps})
-  when Cmd =:= 'AIR'; Cmd =:= 'ULR'; Cmd =:= 'PUR' ->
+  when Cmd =:= 'AIR'; Cmd =:= 'ULR'; Cmd =:= 'PUR'; Cmd =:= 'NOR' ->
     Start = erlang:monotonic_time(),
     ?with_span(span_name(Cmd), #{kind => ?SPAN_KIND_SERVER},
         fun(_) ->
@@ -79,7 +79,8 @@ handle_request(_Pkt, _Svc, _Peer) ->
 
 span_name('AIR') -> <<"s6a.AIR">>;
 span_name('ULR') -> <<"s6a.ULR">>;
-span_name('PUR') -> <<"s6a.PUR">>.
+span_name('PUR') -> <<"s6a.PUR">>;
+span_name('NOR') -> <<"s6a.NOR">>.
 
 dispatch('AIR', Avps, Caps) ->
     R = udr_hss:handle_air(udr_diameter_codec:decode_air(Avps)),
@@ -89,7 +90,10 @@ dispatch('ULR', Avps, Caps) ->
     {reply('ULA', Avps, Caps, udr_diameter_codec:encode_ulr_answer(strip_effects(R)), effects(R)), R};
 dispatch('PUR', Avps, Caps) ->
     R = udr_hss:handle_pur(udr_diameter_codec:decode_pur(Avps)),
-    {reply('PUA', Avps, Caps, udr_diameter_codec:encode_pua_answer(strip_effects(R)), effects(R)), R}.
+    {reply('PUA', Avps, Caps, udr_diameter_codec:encode_pua_answer(strip_effects(R)), effects(R)), R};
+dispatch('NOR', Avps, Caps) ->
+    R = udr_hss:handle_nor(udr_diameter_codec:decode_nor(Avps)),
+    {reply('NOA', Avps, Caps, udr_diameter_codec:encode_noa_answer(strip_effects(R)), effects(R)), R}.
 
 result_class({ok, _, _})      -> success;
 result_class({error, Reason}) -> Reason.

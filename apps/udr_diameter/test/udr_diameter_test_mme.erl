@@ -19,7 +19,7 @@
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
 
--export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, received_clr/2, recorded_clr/1]).
+-export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, nor/1, received_clr/2, recorded_clr/1]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
 
@@ -127,6 +127,14 @@ ulr(Imsi, MmeHost) ->
 pur(Imsi) ->
     Avps = (common(?OWN_HOST))#{'User-Name' => Imsi},
     diameter:call(?SVC, s6a, ['PUR' | Avps], []).
+
+-spec nor(binary()) -> {ok, list()} | {error, term()}.
+nor(Imsi) ->
+    Avps = (common(?OWN_HOST))#{
+        'User-Name' => Imsi,
+        'Terminal-Information' => [#{'IMEI' => <<"3534">>, 'Software-Version' => <<"01">>}],
+        'NOR-Flags' => 0},
+    diameter:call(?SVC, s6a, ['NOR' | Avps], []).
 
 %% Common request AVPs. OriginHost is the serving-MME identity the HSS records;
 %% it is carried in the message even though the connection identity stays mme-a.

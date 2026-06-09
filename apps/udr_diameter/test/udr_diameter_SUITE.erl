@@ -18,10 +18,10 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
--export([air/1, ulr_then_clr/1, pur/1,
+-export([air/1, ulr_then_clr/1, pur/1, nor/1,
          common_dictionary_is_rfc6733/1, decode_errors_answer_not_crash/1]).
 
-all() -> [air, ulr_then_clr, pur,
+all() -> [air, ulr_then_clr, pur, nor,
           common_dictionary_is_rfc6733, decode_errors_answer_not_crash].
 
 init_per_suite(Config) ->
@@ -70,6 +70,14 @@ pur(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['PUA' | Ans]} = udr_diameter_test_mme:pur(Imsi),
     ?assertEqual([2001], maps:get('Result-Code', Ans)).
+
+nor(Config) ->
+    Imsi = ?config(imsi, Config),
+    %% Register this connection's MME (mme-a) as the serving node, then notify.
+    {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
+    {ok, ['NOA' | Ans]} = udr_diameter_test_mme:nor(Imsi),
+    ?assertEqual([2001], maps:get('Result-Code', Ans)),
+    ok.
 
 %% The HSS must register the RFC 6733 base as its common application (App-Id 0)
 %% so diameter's negotiated common dictionary ("Dict0") is RFC 6733, not the
