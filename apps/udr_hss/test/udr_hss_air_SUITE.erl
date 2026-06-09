@@ -17,6 +17,7 @@
 -module(udr_hss_air_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("udr_hss_test.hrl").
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([air_returns_vectors_and_advances_sqn/1,
          air_unknown_imsi_returns_user_unknown/1,
@@ -51,7 +52,7 @@ air_returns_vectors_and_advances_sqn(_Config) ->
     Imsi = <<"001010000000001">>,
     provision(Imsi),
     {ok, Ans, Effects} = udr_hss:handle_air(#{imsi => Imsi,
-                                              visited_plmn => binary:decode_hex(<<"00f110">>),
+                                              visited_plmn => ?VISITED_PLMN_001_01,
                                               num_vectors => 2}),
     ?assertEqual([], Effects),
     Vs = maps:get(vectors, Ans),
@@ -70,7 +71,7 @@ air_returns_vectors_and_advances_sqn(_Config) ->
 air_unknown_imsi_returns_user_unknown(_Config) ->
     ?assertEqual({error, user_unknown},
                  udr_hss:handle_air(#{imsi => <<"nope">>,
-                                      visited_plmn => binary:decode_hex(<<"00f110">>),
+                                      visited_plmn => ?VISITED_PLMN_001_01,
                                       num_vectors => 1})),
     ok.
 
@@ -80,7 +81,7 @@ air_incomplete_auth_material_returns_auth_data_unavailable(_Config) ->
     ok = udr_data:put_authentication_subscription(Imsi, #{<<"sqn">> => 0}),
     ?assertEqual({error, authentication_data_unavailable},
                  udr_hss:handle_air(#{imsi => Imsi,
-                                      visited_plmn => binary:decode_hex(<<"00f110">>),
+                                      visited_plmn => ?VISITED_PLMN_001_01,
                                       num_vectors => 1})),
     ok.
 
@@ -94,6 +95,6 @@ air_unknown_algorithm_returns_auth_data_unavailable(_Config) ->
         <<"sqn">>       => 0}),
     ?assertEqual({error, authentication_data_unavailable},
                  udr_hss:handle_air(#{imsi => Imsi,
-                                      visited_plmn => binary:decode_hex(<<"00f110">>),
+                                      visited_plmn => ?VISITED_PLMN_001_01,
                                       num_vectors => 1})),
     ok.

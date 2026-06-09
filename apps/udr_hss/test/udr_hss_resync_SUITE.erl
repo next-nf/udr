@@ -17,6 +17,7 @@
 -module(udr_hss_resync_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("udr_hss_test.hrl").
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([air_valid_auts_repairs_sqn/1]).
 
@@ -49,7 +50,7 @@ air_valid_auts_repairs_sqn(_Config) ->
     MacS   = udr_crypto_milenage:f1star(?KI, ?OPC, Rand, SqnMs, <<0:16>>),
     Auts   = <<Conc/binary, MacS/binary>>,
     {ok, _Ans, []} = udr_hss:handle_air(#{imsi => Imsi,
-                                          visited_plmn => binary:decode_hex(<<"00f110">>),
+                                          visited_plmn => ?VISITED_PLMN_001_01,
                                           num_vectors => 1,
                                           resync => {Rand, Auts}}),
     {ok, Auth} = udr_data:get_authentication_subscription(Imsi),
