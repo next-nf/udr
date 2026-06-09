@@ -53,8 +53,8 @@ decode_ulr(#{'User-Name' := Imsi, 'Origin-Host' := Host, 'Origin-Realm' := Realm
 
 -doc "Decode a PUR AVP map into the semantic PUR request.".
 -spec decode_pur(map()) -> map().
-decode_pur(#{'User-Name' := Imsi}) ->
-    #{imsi => Imsi}.
+decode_pur(#{'User-Name' := Imsi, 'Origin-Host' := Host}) ->
+    #{imsi => Imsi, mme_host => Host}.
 
 -doc "Build the AIA answer AVPs from udr_hss:handle_air/1's result.".
 -spec encode_air_answer(term()) -> map().

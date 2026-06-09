@@ -89,8 +89,9 @@ ulr_decode_flags(_Config) ->
     ok.
 
 pur_decode(_Config) ->
-    ?assertEqual(#{imsi => <<"i">>},
-                 udr_diameter_codec:decode_pur(#{'User-Name' => <<"i">>})),
+    ?assertEqual(#{imsi => <<"i">>, mme_host => <<"mme-a">>},
+                 udr_diameter_codec:decode_pur(#{'User-Name' => <<"i">>,
+                                                 'Origin-Host' => <<"mme-a">>})),
     ok.
 
 encode_air_answer(_Config) ->
