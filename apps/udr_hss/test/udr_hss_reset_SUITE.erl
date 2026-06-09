@@ -30,11 +30,20 @@ all() ->
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
     {ok, Started} = application:ensure_all_started(udr_hss),
+    %% Reset is a global procedure (it enumerates ALL registrations). Clear this
+    %% suite's IMSIs up front so cases do not leak registrations into one another
+    %% when udr_db stays running across cases within the wider test run.
+    [ udr_data:delete_3gpp_access_registration(I) || I <- imsis() ],
     [{started, Started} | Config].
 
 end_per_testcase(_TestCase, Config) ->
     [ application:stop(A) || A <- lists:reverse(?config(started, Config)) ],
     ok.
+
+%% Every IMSI this suite registers; cleared at init so cases stay independent.
+imsis() ->
+    [<<"001010000000601">>, <<"001010000000602">>, <<"001010000000603">>,
+     <<"001010000000604">>, <<"001010000000605">>].
 
 provision(Imsi) ->
     ok = udr_data:put_subscription_data(
@@ -49,23 +58,28 @@ register_mme(Imsi, Host) ->
 hosts(Effects) ->
     lists:sort([H || {reset, #{mme_host := H}} <- Effects]).
 
+%% reset/0 is a global enumeration, so these cases use suite-unique serving-node
+%% hosts and assert membership/exclusion rather than a global exact match — that
+%% keeps them robust to registrations other suites leave in the shared store.
 reset_fans_out_to_distinct_nodes(_Config) ->
-    provision(<<"001010000000601">>), register_mme(<<"001010000000601">>, <<"mme-a">>),
-    provision(<<"001010000000602">>), register_mme(<<"001010000000602">>, <<"mme-b">>),
+    provision(<<"001010000000601">>), register_mme(<<"001010000000601">>, <<"reset-mme-x">>),
+    provision(<<"001010000000602">>), register_mme(<<"001010000000602">>, <<"reset-mme-y">>),
     {ok, Effects} = udr_hss:reset(),
-    ?assertEqual([<<"mme-a">>, <<"mme-b">>], hosts(Effects)),
+    H = hosts(Effects),
+    ?assert(lists:member(<<"reset-mme-x">>, H)),
+    ?assert(lists:member(<<"reset-mme-y">>, H)),
     ok.
 
 reset_dedups_same_node(_Config) ->
-    provision(<<"001010000000603">>), register_mme(<<"001010000000603">>, <<"mme-a">>),
-    provision(<<"001010000000604">>), register_mme(<<"001010000000604">>, <<"mme-a">>),
+    provision(<<"001010000000603">>), register_mme(<<"001010000000603">>, <<"reset-mme-z">>),
+    provision(<<"001010000000604">>), register_mme(<<"001010000000604">>, <<"reset-mme-z">>),
     {ok, Effects} = udr_hss:reset(),
-    ?assertEqual([<<"mme-a">>], hosts(Effects)),
+    ?assertEqual(1, length([X || X <- hosts(Effects), X =:= <<"reset-mme-z">>])),
     ok.
 
 reset_excludes_purged(_Config) ->
-    provision(<<"001010000000605">>), register_mme(<<"001010000000605">>, <<"mme-a">>),
-    {ok, _, _} = udr_hss:handle_pur(#{imsi => <<"001010000000605">>, mme_host => <<"mme-a">>}),
+    provision(<<"001010000000605">>), register_mme(<<"001010000000605">>, <<"reset-mme-w">>),
+    {ok, _, _} = udr_hss:handle_pur(#{imsi => <<"001010000000605">>, mme_host => <<"reset-mme-w">>}),
     {ok, Effects} = udr_hss:reset(),
-    ?assertEqual([], hosts(Effects)),
+    ?assertNot(lists:member(<<"reset-mme-w">>, hosts(Effects))),
     ok.
