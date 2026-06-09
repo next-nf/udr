@@ -40,11 +40,16 @@ decode_air(#{'User-Name' := Imsi, 'Visited-PLMN-Id' := VPlmn} = Avps) ->
 -doc "Decode a ULR AVP map into the semantic ULR request.".
 -spec decode_ulr(map()) -> map().
 decode_ulr(#{'User-Name' := Imsi, 'Origin-Host' := Host, 'Origin-Realm' := Realm} = Avps) ->
+    Flags = maps:get('ULR-Flags', Avps, 0),
     #{imsi         => Imsi,
       mme_host     => Host,
       mme_realm    => Realm,
       rat_type     => maps:get('RAT-Type', Avps, undefined),
-      visited_plmn => maps:get('Visited-PLMN-Id', Avps, <<>>)}.
+      visited_plmn => maps:get('Visited-PLMN-Id', Avps, <<>>),
+      ulr_flags    => Flags,
+      %% TS 29.272 §7.3.7 ULR-Flags: bit 2 Skip-Subscriber-Data, bit 5 Initial-Attach.
+      skip_subscriber_data => (Flags band 16#4) =/= 0,
+      initial_attach       => (Flags band 16#20) =/= 0}.
 
 -doc "Decode a PUR AVP map into the semantic PUR request.".
 -spec decode_pur(map()) -> map().

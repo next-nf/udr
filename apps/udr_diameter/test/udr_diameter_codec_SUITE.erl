@@ -24,14 +24,14 @@
 
 -export([all/0]).
 -export([air_decode/1, air_decode_resync/1, air_decode_default_numvectors/1,
-         ulr_decode/1, pur_decode/1, encode_air_answer/1,
+         ulr_decode/1, ulr_decode_flags/1, pur_decode/1, encode_air_answer/1,
          encode_error_user_unknown/1, encode_error_unable/1,
          encode_ulr_answer/1, encode_pua_answer/1, clr_request/1,
          ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
-     ulr_decode, pur_decode, encode_air_answer,
+     ulr_decode, ulr_decode_flags, pur_decode, encode_air_answer,
      encode_error_user_unknown, encode_error_unable,
      encode_ulr_answer, encode_pua_answer, clr_request,
      ula_roundtrip, clr_roundtrip, aia_answer_roundtrip].
@@ -73,8 +73,19 @@ ulr_decode(_Config) ->
             'Origin-Realm' => <<"epc">>, 'RAT-Type' => 1004,
             'Visited-PLMN-Id' => <<0,16#f1,16#10>>},
     ?assertEqual(#{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
-                   rat_type => 1004, visited_plmn => <<0,16#f1,16#10>>},
+                   rat_type => 1004, visited_plmn => <<0,16#f1,16#10>>,
+                   ulr_flags => 0, skip_subscriber_data => false, initial_attach => false},
                  udr_diameter_codec:decode_ulr(Req)),
+    ok.
+
+ulr_decode_flags(_Config) ->
+    %% Skip-Subscriber-Data (bit 2 = 4) and Initial-Attach (bit 5 = 32) both set = 36.
+    Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"m">>, 'Origin-Realm' => <<"r">>,
+            'RAT-Type' => 1004, 'Visited-PLMN-Id' => <<0,0,0>>, 'ULR-Flags' => 36},
+    D = udr_diameter_codec:decode_ulr(Req),
+    ?assertEqual(36, maps:get(ulr_flags, D)),
+    ?assertEqual(true, maps:get(skip_subscriber_data, D)),
+    ?assertEqual(true, maps:get(initial_attach, D)),
     ok.
 
 pur_decode(_Config) ->
