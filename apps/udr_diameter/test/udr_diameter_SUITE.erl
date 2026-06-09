@@ -60,7 +60,11 @@ ulr_then_clr(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-b">>),
-    ?assertEqual(true, udr_diameter_test_mme:received_clr(Imsi, 2000)).
+    ?assertEqual(true, udr_diameter_test_mme:received_clr(Imsi, 2000)),
+    Clr = udr_diameter_test_mme:recorded_clr(Imsi),
+    %% ULR-Flags carried 0 (no Initial-Attach) -> MME Update Procedure (0).
+    ?assertEqual(0, maps:get('Cancellation-Type', Clr)),
+    ok.
 
 pur(Config) ->
     Imsi = ?config(imsi, Config),

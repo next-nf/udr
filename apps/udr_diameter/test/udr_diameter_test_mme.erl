@@ -19,7 +19,7 @@
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
 
--export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, received_clr/2]).
+-export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, received_clr/2, recorded_clr/1]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
 
@@ -148,6 +148,11 @@ received_clr(Imsi, Timeout) ->
         undefined -> timer:sleep(50), received_clr(Imsi, Timeout - 50);
         _Avps     -> true
     end.
+
+%% Return the AVP map of the last CLR recorded for an IMSI (undefined if none).
+-spec recorded_clr(binary()) -> map() | undefined.
+recorded_clr(Imsi) ->
+    persistent_term:get({?MODULE, clr, Imsi}, undefined).
 
 %% --- diameter_app callbacks ---
 
