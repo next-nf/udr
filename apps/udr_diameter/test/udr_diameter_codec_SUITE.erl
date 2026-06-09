@@ -34,7 +34,8 @@
          encode_noa_unknown_serving_node/1,
          encode_air_answer_auth_data_unavailable/1,
          idr_roundtrip/1, ida_roundtrip/1,
-         dsr_request/1, dsr_roundtrip/1, dsa_roundtrip/1]).
+         dsr_request/1, dsr_roundtrip/1, dsa_roundtrip/1,
+         rsr_roundtrip/1, rsa_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -48,7 +49,8 @@ all() ->
      encode_noa_unknown_serving_node,
      encode_air_answer_auth_data_unavailable,
      idr_roundtrip, ida_roundtrip,
-     dsr_request, dsr_roundtrip, dsa_roundtrip].
+     dsr_request, dsr_roundtrip, dsa_roundtrip,
+     rsr_roundtrip, rsa_roundtrip].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -341,5 +343,21 @@ dsr_roundtrip(_Config) ->
 
 dsa_roundtrip(_Config) ->
     Decoded = roundtrip('DSA', #{'Result-Code' => [2001]}),
+    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    ok.
+
+rsr_roundtrip(_Config) ->
+    Common = #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
+               'Origin-Host' => <<"hss">>, 'Origin-Realm' => <<"r">>},
+    Rsr = Common#{'Destination-Host' => <<"mme-a">>, 'Destination-Realm' => <<"epc">>},
+    Hdr = #diameter_header{version = 1, end_to_end_id = 1, hop_by_hop_id = 1, is_request = true},
+    #diameter_packet{bin = Bin} =
+        diameter_codec:encode(?DICT, #diameter_packet{header = Hdr, msg = ['RSR' | Rsr]}),
+    #diameter_packet{msg = ['RSR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
+    ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Decoded)),
+    ok.
+
+rsa_roundtrip(_Config) ->
+    Decoded = roundtrip('RSA', #{'Result-Code' => [2001]}),
     ?assertEqual([2001], maps:get('Result-Code', Decoded)),
     ok.

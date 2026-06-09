@@ -290,3 +290,26 @@
       * [ Failed-AVP ]
       * [ Proxy-Info ]
       * [ Route-Record ]
+
+   RSR ::= < Diameter Header: 322, REQ, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        { Destination-Host }
+        { Destination-Realm }
+        [ Vendor-Specific-Application-Id ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
+
+   RSA ::= < Diameter Header: 322, PXY >
+        < Session-Id >
+        { Auth-Session-State }
+        { Origin-Host }
+        { Origin-Realm }
+        [ Vendor-Specific-Application-Id ]
+        [ Result-Code ]
+        [ Experimental-Result ]
+      * [ Failed-AVP ]
+      * [ Proxy-Info ]
+      * [ Route-Record ]
