@@ -1,16 +1,19 @@
 # Demos
 
-Ready-to-use, self-contained demonstrations of the HSS/UDR. Each demo lives in
-its own subdirectory with a `docker-compose.yml`, a `run.sh` that brings the
-stack up, exercises it, asserts the outcome, and tears it down, and a `README.md`
-that explains what it proves.
+Ready-to-use demonstrations of the HSS/UDR. Each demo lives in its own
+subdirectory with a `run.sh` and a `README.md` that explains what it proves; the
+CI-gated ones also ship a `docker-compose.yml`.
 
 | Demo | What it proves | Runs in |
 | --- | --- | --- |
-| [`s6a-smoke/`](s6a-smoke/) | A Diameter MME client provisions a subscriber and gets authentication vectors and a location update from the HSS over S6a. | Locally and in CI (GitHub Actions) |
+| [`s6a-smoke/`](s6a-smoke/) | The project's own Diameter client provisions a subscriber and gets authentication vectors (AIR) and a location update (ULR) from the HSS over S6a. | Locally and in CI |
+| [`open5gs-s6a/`](open5gs-s6a/) | A real **Open5GS MME** (freeDiameter) establishes the S6a Diameter peer with the HSS (CER/CEA) over TCP. | Locally and in CI |
+| [`srsran-attach/`](srsran-attach/) | A real **srsRAN UE** attaches through an Open5GS MME, driving the full S6a **AIR/ULR** exchange end to end. The demo that found and verified the fix for the S6a AIR crash. | Locally (manual — needs the host `sctp` module) |
 
-More demos (Open5GS MME interop, full RAN) are planned; see the project's
-`docs/manual/compatibility.md` for the interoperability record each demo feeds.
+The interoperability outcomes these demos establish are recorded in the project's
+`docs/manual/compatibility.md`. A full data-plane attach (UE gets an IP) is not
+covered here — it needs the EPC user plane and a privileged host; see
+[`srsran-attach/README.md`](srsran-attach/README.md).
 
 ## Conventions
 

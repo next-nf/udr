@@ -38,15 +38,15 @@ The system `shall` be built and run on Erlang/OTP 29 or later. The default [ETS]
 This system speaks [S6a](glossary.md) to an [MME](glossary.md) and serves the [SBI](glossary.md) (Nudr-DR) to 5G consumers such as the [AMF](glossary.md). Whether it interoperates with any specific external implementation of those peers has **not** been tested in this repository.
 
 > [!WARNING]
-> The third-party interop results below are **scoped and dated** — read the Status column precisely. As of this writing, the **Open5GS MME** has been verified to *peer* with our HSS over S6a (the CER/CEA Diameter handshake) in CI, but a full subscriber **attach** (AIR/ULR exchange driven by an S1AP attach) has **not** yet been exercised. The remaining candidate rows are **Not yet verified** — `srsRAN` and an operator's own MME are targets for a test campaign, not implementations this system has been shown to work with. The project's own in-repo S6a client verifies the HSS's S6a path end to end (AIR/ULR) but is **not** a third-party result. An operator who runs an interoperability test `should` record the outcome, the peer version, and the date.
+> The third-party interop results below are **scoped and dated** — read the Status column precisely. The **Open5GS MME** has been verified to *peer* with our HSS over S6a (the CER/CEA handshake) in CI, and a full subscriber **attach** — a real srsRAN UE driving `AIR`/`ULR` through the Open5GS MME to our HSS — has been **verified locally (manually)** after the S6a fix in PR #12. That attach is not a CI gate (it needs the host `sctp` module and an emulated radio); it is the [`demos/srsran-attach`](../../demos/srsran-attach/) demo. The data plane (the UE obtaining an IP) is **out of scope** and unverified. The project's own in-repo S6a client verifies the HSS's S6a path end to end (AIR/ULR) but is **not** a third-party result. An operator who runs an interoperability test `should` record the outcome, the peer version, and the date.
 
 ### 3.1 S6a peers (Diameter / `udr_diameter`)
 
 | Peer (candidate) | Interface | Peer version tested | Status | Date verified | Notes |
 | --- | --- | --- | --- | --- | --- |
 | **udr S6a smoke client (in-repo)** | S6a (AIR/ULR) | this repository | **Verified (CI)** | 2026-06-08 | The project's own Diameter client ([`demos/s6a-smoke`](../../demos/s6a-smoke/)), run by `.github/workflows/demo-s6a.yml`: AIR → AIA `2001` with the requested vectors, ULR → ULA `2001`. Confirms the HSS S6a path; **not** a third-party interop result. |
-| Open5GS MME (freeDiameter) | S6a peering (CER/CEA) | v2.4.0 (openverso) | **Peering verified (CI)** | 2026-06-08 | [`demos/open5gs-s6a`](../../demos/open5gs-s6a/), gated by `demo-open5gs.yml`: the MME establishes the S6a Diameter peer with our HSS over TCP. A full attach (AIR/ULR over S1AP) is not yet exercised — that is D2b. |
-| srsRAN (with EPC/MME) | S6a | — | Not yet verified | — | Candidate target. Not tested here. |
+| Open5GS MME (freeDiameter) | S6a peering (CER/CEA) | v2.4.0 (openverso) | **Peering verified (CI)** | 2026-06-08 | [`demos/open5gs-s6a`](../../demos/open5gs-s6a/), gated by `demo-open5gs.yml`: the MME establishes the S6a Diameter peer with our HSS over TCP. |
+| Open5GS MME — full attach (AIR/ULR) | S6a (AIR/ULR via S1AP attach) | v2.4.0 (openverso), srsRAN 25.10 UE | **Verified (manual)** | 2026-06-09 | [`demos/srsran-attach`](../../demos/srsran-attach/): a real srsRAN UE attach drives AIR → AIA and ULR → ULA through the MME to our HSS. Required the PR #12 S6a fix. Manual (needs host `sctp`); not a CI gate. Data plane out of scope. |
 | _(operator's MME)_ | S6a | — | Not yet verified | — | Record the operator's own MME implementation and result. |
 
 ### 3.2 SBI / Nudr-DR consumers (`udr_sbi`)
