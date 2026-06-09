@@ -25,7 +25,7 @@
 -type request() :: #{atom() => term()}.
 -type answer() :: #{atom() => term()}.
 -type effect() :: {cancel_location, map()}.
--type error_code() :: user_unknown | unable_to_comply | session_busy | unknown_serving_node.
+-type error_code() :: user_unknown | unable_to_comply | session_busy | unknown_serving_node | authentication_data_unavailable.
 
 -doc "Handle an Authentication-Information request: return N EPS vectors (and apply an\n"
      "AUTS resync if present), advancing the stored SQN. Runs under the per-IMSI lock.\n"
@@ -139,23 +139,37 @@ do_air(#{imsi := Imsi, visited_plmn := SnId, num_vectors := N} = Req) ->
         {error, not_found} ->
             {error, user_unknown};
         {ok, Auth} ->
-            #{<<"algorithm">> := AlgoBin, <<"ki">> := K,
-              <<"opc">> := OPc, <<"amf">> := AMF} = Auth,
-            Algo = algo(AlgoBin),
-            case maybe_resync(Imsi, Req, Algo, K, OPc) of
-                ok ->
-                    case udr_data:advance_sqn(Imsi, N) of
-                        {ok, Start} ->
-                            {Vectors, _Next} =
-                                udr_crypto:generate_eps_vectors(Algo, K, OPc, AMF, Start, N, SnId),
-                            {ok, #{vectors => [av_to_map(V) || V <- Vectors]}, []};
-                        {error, not_found}     -> {error, user_unknown};
-                        {error, cas_exhausted} -> {error, unable_to_comply}
-                    end;
-                {error, _} = ResyncErr ->
-                    ResyncErr
+            case auth_material(Auth) of
+                {error, invalid} ->
+                    {error, authentication_data_unavailable};
+                {ok, Algo, K, OPc, AMF} ->
+                    case maybe_resync(Imsi, Req, Algo, K, OPc) of
+                        ok ->
+                            case udr_data:advance_sqn(Imsi, N) of
+                                {ok, Start} ->
+                                    {Vectors, _Next} =
+                                        udr_crypto:generate_eps_vectors(Algo, K, OPc, AMF, Start, N, SnId),
+                                    {ok, #{vectors => [av_to_map(V) || V <- Vectors]}, []};
+                                {error, not_found}     -> {error, user_unknown};
+                                {error, cas_exhausted} -> {error, authentication_data_unavailable}
+                            end;
+                        {error, _} = ResyncErr ->
+                            ResyncErr
+                    end
             end
     end.
+
+%% Validate the stored authentication material; return the algorithm and keys, or
+%% {error, invalid} when a required field is missing or the algorithm is unknown
+%% (the HSS then answers DIAMETER_ERROR_AUTHENTICATION_DATA_UNAVAILABLE).
+auth_material(#{<<"algorithm">> := AlgoBin, <<"ki">> := K,
+                <<"opc">> := OPc, <<"amf">> := AMF}) ->
+    case algo(AlgoBin) of
+        {ok, Algo} -> {ok, Algo, K, OPc, AMF};
+        error      -> {error, invalid}
+    end;
+auth_material(_Incomplete) ->
+    {error, invalid}.
 
 %% AUTS resync: verify, then repair stored SQN to SQN_MS + 1 (next to allocate).
 maybe_resync(Imsi, #{resync := {Rand, Auts}}, Algo, K, OPc) ->
@@ -164,7 +178,7 @@ maybe_resync(Imsi, #{resync := {Rand, Auts}}, Algo, K, OPc) ->
             <<SqnMsInt:48>> = SqnMs,
             case udr_data:repair_sqn(Imsi, SqnMsInt + 1) of
                 ok         -> ok;
-                {error, _} -> {error, unable_to_comply}
+                {error, _} -> {error, authentication_data_unavailable}
             end;
         {error, mac_failure} ->
             ok  %% ignore a failed resync; fresh vectors let the UE resync again
@@ -176,7 +190,8 @@ maybe_resync(_Imsi, _Req, _Algo, _K, _OPc) ->
 in_session(Imsi, Fun) ->
     udr_cluster:with_session(Imsi, Fun).
 
-algo(<<"milenage">>) -> milenage.
+algo(<<"milenage">>) -> {ok, milenage};
+algo(_)              -> error.
 
 av_to_map(V) ->
     #{rand  => V#eps_av.rand,
