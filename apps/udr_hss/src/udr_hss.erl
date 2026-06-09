@@ -20,11 +20,11 @@
            "the transport (udr_diameter) to execute.".
 -import_record(udr_crypto, [eps_av]).
 
--export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1, insert_subscriber_data/1]).
+-export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1, insert_subscriber_data/1, delete_subscriber_data/2]).
 
 -type request() :: #{atom() => term()}.
 -type answer() :: #{atom() => term()}.
--type effect() :: {cancel_location, map()} | {insert_subscriber_data, map()}.
+-type effect() :: {cancel_location, map()} | {insert_subscriber_data, map()} | {delete_subscriber_data, map()}.
 -type error_code() :: user_unknown | unable_to_comply | session_busy | unknown_serving_node | authentication_data_unavailable.
 
 -doc "Handle an Authentication-Information request: return N EPS vectors (and apply an\n"
@@ -88,6 +88,28 @@ do_isd(Imsi) ->
                 {error, not_found} ->
                     {error, not_found}
             end;
+        {error, not_registered} ->
+            {error, not_registered}
+    end.
+
+-doc "Decide an HSS-initiated Delete Subscriber Data withdrawal: if the subscriber is\n"
+     "registered (and not purged), return a delete_subscriber_data effect carrying the\n"
+     "DSR-Flags bitmask of data classes to withdraw; otherwise {error, not_registered}.".
+-spec delete_subscriber_data(binary(), non_neg_integer()) ->
+    {ok, [effect()]} | {error, not_registered}.
+delete_subscriber_data(Imsi, Flags) ->
+    in_session(Imsi, fun() -> do_dsd(Imsi, Flags) end).
+
+do_dsd(Imsi, Flags) ->
+    case udr_data:get_3gpp_access_registration(Imsi) of
+        {ok, #{<<"ue_purged">> := true}} ->
+            {error, not_registered};
+        {ok, #{<<"serving_mme_host">> := Host} = Reg} ->
+            {ok, [{delete_subscriber_data,
+                   #{imsi      => Imsi,
+                     mme_host  => Host,
+                     mme_realm => maps:get(<<"serving_mme_realm">>, Reg, <<>>),
+                     dsr_flags => Flags}}]};
         {error, not_registered} ->
             {error, not_registered}
     end.
