@@ -11,7 +11,7 @@ maps_to:
     answer:  Reset-Answer (RSA)
     command_code: 322
     application_id: 16777251   # S6a/S6d
-support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
+support_status: implemented      # pragmatic core; assessed 2026-06-09
 ---
 
 # S6A-PROC-RST — Reset
@@ -141,18 +141,34 @@ The HSS-side behaviour:
 
 ## Support status
 
-**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+**Status:** implemented (pragmatic core) — Cycle ⑦ 2026-06-09.
 
-(Informative.) The Reset procedure is entirely absent: command 322 and the Reset AVPs
-are not in the dictionary, no codec/handler/send path exists, and — critically — there
-is no restart/failure-recovery detection or O&M hook to trigger it.
+(Informative.) After a recovery event the HSS fans a bare RSR out to every distinct
+registered (non-purged) serving node and absorbs the RSA.
 
-**Required to implement**
+**Implemented**
 
-- Dictionary command 322 plus the Reset AVPs (User-Id, Reset-ID, Subscription-Data,
-  Subscription-Data-Deletion).
-- A codec `rsr_request/1` builder and an RSA decoder.
-- A restart-recovery trigger (and/or O&M hook) that fans RSR out to the affected
-  MMEs/SGSNs, plus RSA result handling.
+- RSR/RSA (command 322) added to the Diameter dictionary.
+- `udr_diameter_codec:rsr_request/1` — builds the outbound RSR (Destination-Host and
+  Destination-Realm; no per-subscriber scoping AVPs in the bare Reset).
+- `udr_data:registered_serving_nodes/0` — enumerates the distinct, non-purged serving
+  nodes across all 3GPP access registrations via the backend-agnostic `udr_db:find/2`.
+- `udr_hss:reset/0` — maps each distinct node to a `{reset, Info}` effect (system-wide,
+  not under a per-IMSI lock).
+- `udr_diameter_s6a:reset/0` — public trigger; fans an RSR out to each node via the
+  shared `udr_diameter_s6a:originate/3` outbound helper; RSA is absorbed fire-and-forget.
 
-**Tests:** none.
+**Deferred (backlog)**
+
+- Automatic restart/failure-recovery trigger — no restart-detection yet; the procedure
+  is exposed via `reset/0` for operator or supervisory invocation.
+- User-Id and Reset-ID subscriber scoping (bare RSR only for now).
+- Subscription-Data / Subscription-Data-Deletion carried in an RSR (the Rel-16
+  shared-subscription-data update/delete path).
+- RSA result processing beyond absorb (error logging, retry policy).
+- Supported-Features negotiation.
+
+**Tests:** `apps/udr_hss/test/udr_hss_reset_SUITE.erl` (fan-out, dedup,
+exclude-purged); RSR/RSA codec cases (`rsr_roundtrip`, `rsa_roundtrip`, `rsr_request`)
+in `apps/udr_diameter/test/udr_diameter_codec_SUITE.erl`; on-wire `rsr` case in
+`apps/udr_diameter/test/udr_diameter_SUITE.erl`.

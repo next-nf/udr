@@ -31,16 +31,16 @@ exactly these eight S6a/S6d procedures, with the same command codes.
 | S6A-PROC-ISD | Insert Subscriber Data | 5.2.2.1 | HSS | IDR/IDA (319) | implemented | [insert-subscriber-data.md](insert-subscriber-data.md) |
 | S6A-PROC-DSD | Delete Subscriber Data | 5.2.2.2 | HSS | DSR/DSA (320) | implemented | [delete-subscriber-data.md](delete-subscriber-data.md) |
 | S6A-PROC-AIR | Authentication Information Retrieval | 5.2.3.1 | MME / SGSN | AIR/AIA (318) | implemented | [authentication-information-retrieval.md](authentication-information-retrieval.md) |
-| S6A-PROC-RST | Reset | 5.2.4.1 | HSS | RSR/RSA (322) | not-implemented | [reset.md](reset.md) |
+| S6A-PROC-RST | Reset | 5.2.4.1 | HSS | RSR/RSA (322) | implemented | [reset.md](reset.md) |
 | S6A-PROC-NOT | Notification | 5.2.5.1 | MME / SGSN | NOR/NOA (323) | implemented | [notification.md](notification.md) |
 
 > [!NOTE]
 > `support_status` was assessed on 2026-06-09 against the code at `main` (c605b66),
-> updated through Cycle ⑥: seven procedures are **implemented** (Update Location, Cancel
-> Location, Purge UE, Notification, Authentication Information Retrieval, Insert
-> Subscriber Data, Delete Subscriber Data — pragmatic core, Cycles ①–⑥); zero are
-> **partial**; one is **not-implemented** (Reset). Each file's "Support status"
-> section records the evidence (entry points, what is implemented, and gaps). Values:
+> updated through Cycle ⑦: all **eight** procedures are **implemented** (Update Location,
+> Cancel Location, Purge UE, Notification, Authentication Information Retrieval, Insert
+> Subscriber Data, Delete Subscriber Data, Reset — pragmatic core, Cycles ①–⑦); zero are
+> **partial**; zero are **not-implemented**. The catalog is complete at the pragmatic-core
+> bar; each procedure's deferred extensions are listed in its own file. Values:
 > `implemented` · `partial` · `not-implemented`.
 
 ## Category grouping (TS 29.272 clause 5.2)
