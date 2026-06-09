@@ -28,7 +28,7 @@ exactly these eight S6a/S6d procedures, with the same command codes.
 | S6A-PROC-UL | Update Location | 5.2.1.1 | MME / SGSN | ULR/ULA (316) | implemented | [update-location.md](update-location.md) |
 | S6A-PROC-CL | Cancel Location | 5.2.1.2 | HSS | CLR/CLA (317) | implemented | [cancel-location.md](cancel-location.md) |
 | S6A-PROC-PU | Purge UE | 5.2.1.3 | MME / SGSN | PUR/PUA (321) | implemented | [purge-ue.md](purge-ue.md) |
-| S6A-PROC-ISD | Insert Subscriber Data | 5.2.2.1 | HSS | IDR/IDA (319) | not-implemented | [insert-subscriber-data.md](insert-subscriber-data.md) |
+| S6A-PROC-ISD | Insert Subscriber Data | 5.2.2.1 | HSS | IDR/IDA (319) | implemented | [insert-subscriber-data.md](insert-subscriber-data.md) |
 | S6A-PROC-DSD | Delete Subscriber Data | 5.2.2.2 | HSS | DSR/DSA (320) | not-implemented | [delete-subscriber-data.md](delete-subscriber-data.md) |
 | S6A-PROC-AIR | Authentication Information Retrieval | 5.2.3.1 | MME / SGSN | AIR/AIA (318) | implemented | [authentication-information-retrieval.md](authentication-information-retrieval.md) |
 | S6A-PROC-RST | Reset | 5.2.4.1 | HSS | RSR/RSA (322) | not-implemented | [reset.md](reset.md) |
@@ -36,10 +36,10 @@ exactly these eight S6a/S6d procedures, with the same command codes.
 
 > [!NOTE]
 > `support_status` was assessed on 2026-06-09 against the code at `main` (c605b66),
-> updated through Cycle ④: five procedures are **implemented** (Update Location, Cancel
-> Location, Purge UE, Notification, Authentication Information Retrieval — pragmatic
-> core, Cycles ①–④); zero are **partial**; three are **not-implemented**
-> (Insert Subscriber Data, Delete Subscriber Data, Reset). Each file's "Support status"
+> updated through Cycle ⑤: six procedures are **implemented** (Update Location, Cancel
+> Location, Purge UE, Notification, Authentication Information Retrieval, Insert
+> Subscriber Data — pragmatic core, Cycles ①–⑤); zero are **partial**; two are
+> **not-implemented** (Delete Subscriber Data, Reset). Each file's "Support status"
 > section records the evidence (entry points, what is implemented, and gaps). Values:
 > `implemented` · `partial` · `not-implemented`.
 

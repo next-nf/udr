@@ -11,7 +11,7 @@ maps_to:
     answer:  Insert-Subscriber-Data-Answer (IDA)
     command_code: 319
     application_id: 16777251   # S6a/S6d
-support_status: not-implemented  # assessed 2026-06-09 against code at main (c605b66)
+support_status: implemented      # pragmatic core; assessed 2026-06-09
 ---
 
 # S6A-PROC-ISD — Insert Subscriber Data
@@ -167,20 +167,46 @@ The HSS-side behaviour:
 
 ## Support status
 
-**Status:** not-implemented — assessed 2026-06-09 against the code at `main` (c605b66).
+**Status:** implemented (pragmatic core) — Cycle ⑤ 2026-06-09.
 
-(Informative.) There is no IDR/IDA support anywhere: command 319 is not in the S6a
-Diameter dictionary, the codec has no IDR builder or IDA decoder, and there is no
-HSS-initiated trigger or send path. (For comparison, the only HSS-initiated send path
-that exists is Cancel Location; see [[S6A-PROC-CL]].)
+(Informative.) The HSS can push a registered subscriber's current Subscription-Data to
+its serving MME via IDR and absorb the IDA.
 
-**Required to implement**
+**Implemented**
 
-- Dictionary command 319 plus the IDR/IDA AVPs (IDR-Flags, EPS-User-State,
-  EPS-Location-Information, …).
-- A codec `idr_request/1` builder (analogous to `clr_request/1`) and an IDA decoder.
-- An HSS-initiated trigger/effect that turns a subscription-data change into an IDR
-  (the `effect()` type at `apps/udr_hss/src/udr_hss.erl:27` is `cancel_location` only).
-- A `diameter:call` dispatch for `IDR` and IDA result handling.
+- IDR/IDA (command code 319) added to the S6a Diameter dictionary, together with
+  IDR-Flags (AVP 1490) and IDA-Flags (AVP 1491).
+- `udr_diameter_codec:idr_request/1` builds the IDR AVPs (User-Name,
+  Destination-Host/Realm, Subscription-Data via the shared `subscription_data/1`
+  builder).
+- `udr_diameter_s6a:originate/3` — reusable HSS-initiated outbound helper; Cancel
+  Location was refactored onto it and it is ready for DSR/RSR as well.
+- `udr_hss:insert_subscriber_data/1` — decides the push: registered and non-purged
+  subscriber returns an `insert_subscriber_data` effect carrying the current
+  Subscription-Data; otherwise `{error, not_registered}`.
+- `udr_diameter_s6a:push_subscriber_data/1` — public trigger that originates the IDR
+  to the serving MME (fire-and-forget; the IDA is absorbed).
 
-**Tests:** none.
+**Deferred (backlog)**
+
+- Automatic invocation from the provisioning API (subscription-data PUT auto-push IDR)
+  — capability is exposed via `push_subscriber_data/1` for operator or future
+  automation use; the auto-push is a planned follow-up.
+- All IDR-Flags request semantics: UE-Reachability-Request, T-ADS-Data-Request,
+  EPS-User-State-Request, EPS-Location-Information-Request, Current-Location-Request,
+  Local-Time-Zone-Request, RAT-Type-Requested, Remove-SMS-Registration,
+  P-CSCF-Restoration-Request.
+- Reset-IDs in IDR.
+- Monitoring-Event-Configuration / Monitoring-Event-Report forwarding to SCEF.
+- Active-Time (Suggested-Network-Configuration / O&M-configured).
+- ProSe, V2X, Emergency-Info, External-Identifier, Aerial-UE, and
+  Core-Network-Restrictions subscription data push.
+- IDA-Flags processing (e.g. SGSN Area Restricted → set flag in HSS).
+- Supported-Features negotiation.
+
+**Tests:** `apps/udr_hss/test/udr_hss_isd_SUITE.erl` (3 cases:
+`insert_subscriber_data_registered`, `insert_subscriber_data_not_registered`,
+`insert_subscriber_data_purged`); IDR/IDA codec cases in
+`apps/udr_diameter/test/udr_diameter_codec_SUITE.erl` (`idr_roundtrip`, `ida_roundtrip`,
+`idr_request`); on-wire `idr` case in
+`apps/udr_diameter/test/udr_diameter_SUITE.erl`.
