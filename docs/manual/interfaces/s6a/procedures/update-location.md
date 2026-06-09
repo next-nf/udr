@@ -223,6 +223,9 @@ remaining gaps are explicitly deferred as out-of-scope for pragmatic core.
 - Step 16 return Subscription-Data + 2001: `udr_hss.erl:58`; codec `:64`.
 - Step 17 Separation Indication: hardcoded `ULA-Flags => [1]`
   (`udr_diameter_codec.erl:67`).
+- Cancel Location is suppressed toward a previous node that marked the UE purged, and
+  the purged flag is cleared on re-registration ([[S6A-PROC-PU]]) —
+  `udr_hss:clr_effect_if_moved/3`.
 
 **Deferred (backlog)**
 
@@ -232,8 +235,7 @@ remaining gaps are explicitly deferred as out-of-scope for pragmatic core.
 - Single-Registration-Indication, SMS-Only-Indication, and Dual-Registration-5G-
   Indicator flag handling; SGSN / S6d cancel branches.
 - Terminal-Information / UE-SRVCC / Active-APN / dynamic-PDN-GW storage (steps 13–14).
-- URRP clearing (step 12); UE-purged-flag reset (planned for the Purge UE cycle);
-  last-known-location deletion.
+- URRP clearing (step 12); last-known-location deletion.
 - Full Subscription-Data (currently minimal: Subscriber-Status + optional AMBR + one
   APN config); Supported-Features; Error-Diagnostic; SMS-in-MME registration and the
   ULA "MME Registered for SMS" flag.
