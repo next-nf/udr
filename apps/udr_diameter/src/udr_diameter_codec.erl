@@ -65,12 +65,14 @@ encode_air_answer({ok, #{vectors := Vs}}) ->
 encode_air_answer({error, Reason}) ->
     error_avps(Reason).
 
--doc "Build the ULA answer AVPs (incl. minimal Subscription-Data) from handle_ulr's result.".
+-doc "Build the ULA answer AVPs (incl. Subscription-Data unless skipped) from handle_ulr's result.".
 -spec encode_ulr_answer(term()) -> map().
-encode_ulr_answer({ok, #{subscription_data := Profile}}) ->
-    #{'Result-Code' => [?SUCCESS],
-      'ULA-Flags' => [1],
-      'Subscription-Data' => [subscription_data(Profile)]};
+encode_ulr_answer({ok, Answer}) when is_map(Answer) ->
+    Base = #{'Result-Code' => [?SUCCESS], 'ULA-Flags' => [1]},
+    case maps:get(subscription_data, Answer, undefined) of
+        undefined -> Base;
+        Profile   -> Base#{'Subscription-Data' => [subscription_data(Profile)]}
+    end;
 encode_ulr_answer({error, Reason}) ->
     error_avps(Reason).
 
