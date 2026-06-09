@@ -11,7 +11,7 @@ maps_to:
     answer:  Cancel-Location-Answer (CLA)
     command_code: 317
     application_id: 16777251   # S6a/S6d
-support_status: partial          # assessed 2026-06-09 against code at main (c605b66)
+support_status: implemented      # pragmatic core; assessed 2026-06-09
 ---
 
 # S6A-PROC-CL — Cancel Location
@@ -141,11 +141,14 @@ The HSS-side behaviour:
 
 ## Support status
 
-**Status:** partial — assessed 2026-06-09 against the code at `main` (c605b66).
+**Status:** implemented (pragmatic core) — Cycle ① 2026-06-09.
 
-(Informative.) The HSS-initiated send path exists end to end — Update Location triggers
-a real CLR over the wire and the CLA is accepted — but the Cancellation-Type is
-hardcoded, CLR-Flags are absent, and the CLA is not processed.
+(Informative.) The HSS-initiated send path works end to end — Update Location triggers
+a real CLR over the wire with the correct Cancellation-Type and the CLA is accepted.
+
+> [!NOTE]
+> The prior Cancellation-Type bug (hardcoded `Subscription Withdrawal (2)`) was fixed
+> in Cycle ①.
 
 **Implemented**
 
@@ -153,27 +156,24 @@ hardcoded, CLR-Flags are absent, and the CLA is not processed.
   sent fire-and-forget over the wire (`apps/udr_diameter/src/udr_diameter_s6a.erl:128`,
   `diameter:call(..., ['CLR'|Clr], [detach,...])`), driven by the `cancel_location`
   effect emitted from Update Location (`apps/udr_hss/src/udr_hss.erl:61`).
-- Trigger (step 3, MME-move case): the HSS sends CLR to the previous MME when a ULR
-  registers a different serving node.
+- Correct Cancellation-Type, derived per trigger by the Update Location flow:
+  `MME Update Procedure (0)` for an inter-MME move; `Initial Attach Procedure (4)`
+  when the Initial-Attach-Indicator flag is set. Mapped to the wire value via the
+  private `cancellation_type/1` function in `udr_diameter_codec:clr_request/1`.
+- HSS-originated CLR sent on the wire and CLA accepted.
 
-**Not yet implemented**
+**Deferred (backlog)**
 
-- Cancellation-Type hardcoded to `Subscription Withdrawal (2)`
-  (`udr_diameter_codec.erl:85`); the MME-move trigger should use `MME Update
-  Procedure (0)`. No SGSN-Update / Update-Procedure-IWF / Initial-Attach types.
-- CLR-Flags AVP absent from dictionary and code — no S6a/S6d-Indicator (step 5) or
-  Reattach-Required (Rel-16).
-- CLA result discarded (`udr_diameter_s6a.erl:53`, `handle_answer/4 -> ok`);
-  Result-Code 2001 not processed.
-- Triggers limited to the ULR-driven MME change; subscription-withdrawal / profile /
-  CN-restriction / initial-attach triggers (steps 1, 2, 4) have no path.
+- CLR-Flags AVP: S6a/S6d-Indicator (step 5) and Reattach-Required (Rel-16) absent
+  from dictionary and code.
+- CLA result-driven retry / alarm: CLA is accepted but the Result-Code is not
+  processed further.
+- Non-ULR triggers: subscription withdrawal, profile change, CN-restriction change,
+  and standalone initial-attach triggers (steps 1, 2, 4) have no path.
 - Supported-Features not handled.
 
-**Tests:** `apps/udr_diameter/test/udr_diameter_SUITE.erl:59` (`ulr_then_clr` —
-on-wire CLR + CLA), `apps/udr_diameter/test/udr_diameter_codec_SUITE.erl:121`, `:155`;
-`apps/udr_hss/test/udr_hss_ulr_SUITE.erl:63`.
-
-> [!WARNING]
-> The wrong Cancellation-Type on the Update-Location-driven CLR (`Subscription
-> Withdrawal` instead of `MME Update Procedure`) is a correctness bug shared with
-> [[S6A-PROC-UL]]: `apps/udr_diameter/src/udr_diameter_codec.erl:85`.
+**Tests:** `apps/udr_diameter/test/udr_diameter_SUITE.erl` (`ulr_then_clr` — on-wire
+CLR + CLA, asserts Cancellation-Type 0 via `udr_diameter_test_mme:recorded_clr/1`),
+`apps/udr_diameter/test/udr_diameter_codec_SUITE.erl` (`clr_request`, `clr_roundtrip`),
+`apps/udr_hss/test/udr_hss_ulr_SUITE.erl` (`ulr_new_mme_emits_cancel_location`,
+`ulr_initial_attach_uses_initial_attach_cancellation`).

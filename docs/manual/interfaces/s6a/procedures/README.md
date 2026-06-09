@@ -25,8 +25,8 @@ exactly these eight S6a/S6d procedures, with the same command codes.
 
 | ID | Procedure | Clause | Initiator | Diameter mapping (code) | Support status | File |
 |---|---|---|---|---|---|---|
-| S6A-PROC-UL | Update Location | 5.2.1.1 | MME / SGSN | ULR/ULA (316) | partial | [update-location.md](update-location.md) |
-| S6A-PROC-CL | Cancel Location | 5.2.1.2 | HSS | CLR/CLA (317) | partial | [cancel-location.md](cancel-location.md) |
+| S6A-PROC-UL | Update Location | 5.2.1.1 | MME / SGSN | ULR/ULA (316) | implemented | [update-location.md](update-location.md) |
+| S6A-PROC-CL | Cancel Location | 5.2.1.2 | HSS | CLR/CLA (317) | implemented | [cancel-location.md](cancel-location.md) |
 | S6A-PROC-PU | Purge UE | 5.2.1.3 | MME / SGSN | PUR/PUA (321) | partial | [purge-ue.md](purge-ue.md) |
 | S6A-PROC-ISD | Insert Subscriber Data | 5.2.2.1 | HSS | IDR/IDA (319) | not-implemented | [insert-subscriber-data.md](insert-subscriber-data.md) |
 | S6A-PROC-DSD | Delete Subscriber Data | 5.2.2.2 | HSS | DSR/DSA (320) | not-implemented | [delete-subscriber-data.md](delete-subscriber-data.md) |
@@ -36,11 +36,11 @@ exactly these eight S6a/S6d procedures, with the same command codes.
 
 > [!NOTE]
 > `support_status` was assessed on 2026-06-09 against the code at `main` (c605b66):
-> four procedures are **partial** (AIR, Update Location, Purge UE, Cancel Location)
-> and four are **not-implemented** (Insert/Delete Subscriber Data, Reset,
-> Notification). Each file's "Support status" section records the evidence
-> (entry points, what is implemented, and gaps). Values:
-> `partial` · `not-implemented` (a future `implemented` is reserved for full coverage).
+> two procedures are **implemented** (Update Location, Cancel Location — pragmatic
+> core, Cycle ①); two are **partial** (AIR, Purge UE); four are **not-implemented**
+> (Insert/Delete Subscriber Data, Reset, Notification). Each file's "Support status"
+> section records the evidence (entry points, what is implemented, and gaps). Values:
+> `implemented` · `partial` · `not-implemented`.
 
 ## Category grouping (TS 29.272 clause 5.2)
 
