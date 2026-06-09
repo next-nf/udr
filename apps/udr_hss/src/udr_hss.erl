@@ -69,9 +69,14 @@ do_ulr(#{imsi := Imsi, mme_host := NewHost, mme_realm := NewRealm} = Req) ->
 clr_effect_if_moved(Imsi, NewHost, CancelType) ->
     case udr_data:get_3gpp_access_registration(Imsi) of
         {ok, #{<<"serving_mme_host">> := OldHost} = Old} when OldHost =/= NewHost ->
-            [{cancel_location, #{imsi => Imsi, mme_host => OldHost,
-                                 mme_realm => maps:get(<<"serving_mme_realm">>, Old, <<>>),
-                                 cancellation_type => CancelType}}];
+            case maps:get(<<"ue_purged">>, Old, false) of
+                true ->
+                    [];   %% the purged node already dropped the UE; suppress Cancel Location
+                false ->
+                    [{cancel_location, #{imsi => Imsi, mme_host => OldHost,
+                                         mme_realm => maps:get(<<"serving_mme_realm">>, Old, <<>>),
+                                         cancellation_type => CancelType}}]
+            end;
         _ ->
             []
     end.
