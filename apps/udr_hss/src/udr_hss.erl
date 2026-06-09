@@ -20,11 +20,11 @@
            "the transport (udr_diameter) to execute.".
 -import_record(udr_crypto, [eps_av]).
 
--export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1, insert_subscriber_data/1, delete_subscriber_data/2]).
+-export([handle_air/1, handle_ulr/1, handle_pur/1, handle_nor/1, insert_subscriber_data/1, delete_subscriber_data/2, reset/0]).
 
 -type request() :: #{atom() => term()}.
 -type answer() :: #{atom() => term()}.
--type effect() :: {cancel_location, map()} | {insert_subscriber_data, map()} | {delete_subscriber_data, map()}.
+-type effect() :: {cancel_location, map()} | {insert_subscriber_data, map()} | {delete_subscriber_data, map()} | {reset, map()}.
 -type error_code() :: user_unknown | unable_to_comply | session_busy | unknown_serving_node | authentication_data_unavailable.
 
 -doc "Handle an Authentication-Information request: return N EPS vectors (and apply an\n"
@@ -64,6 +64,17 @@ do_ulr(#{imsi := Imsi, mme_host := NewHost, mme_realm := NewRealm} = Req) ->
                          false -> #{subscription_data => Profile}
                      end,
             {ok, Answer, Effects}
+    end.
+
+-doc "Decide an HSS-initiated Reset fan-out: one reset effect per distinct, non-purged\n"
+     "registered serving node, telling each to mark its subscribers as needing restoration.".
+-spec reset() -> {ok, [effect()]} | {error, term()}.
+reset() ->
+    case udr_data:registered_serving_nodes() of
+        {ok, Nodes} ->
+            {ok, [{reset, #{mme_host => H, mme_realm => R}} || {H, R} <- Nodes]};
+        {error, _} = E ->
+            E
     end.
 
 -doc "Decide an HSS-initiated Insert Subscriber Data push: if the subscriber is registered\n"
