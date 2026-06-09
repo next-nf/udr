@@ -19,13 +19,15 @@
            "maps. Honors OTP map arity: required-once AVPs are bare, optional/repeatable\n"
            "are lists, grouped are nested maps. The single S6a<->semantic conversion point.".
 
--export([decode_air/1, decode_ulr/1, decode_pur/1,
-         encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, clr_request/1]).
+-export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
+         encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
+         clr_request/1]).
 
 -define(SUCCESS, 2001).
 -define(UNABLE_TO_COMPLY, 5012).
 -define(USER_UNKNOWN, 5001).
 -define(UNKNOWN_EPS_SUBSCRIPTION, 5420).
+-define(UNKNOWN_SERVING_NODE, 5423).
 -define(VENDOR_3GPP, 10415).
 
 -doc "Decode an AIR AVP map into the semantic AIR request for udr_hss:handle_air/1.".
@@ -55,6 +57,27 @@ decode_ulr(#{'User-Name' := Imsi, 'Origin-Host' := Host, 'Origin-Realm' := Realm
 -spec decode_pur(map()) -> map().
 decode_pur(#{'User-Name' := Imsi, 'Origin-Host' := Host}) ->
     #{imsi => Imsi, mme_host => Host}.
+
+-doc "Decode a NOR AVP map into the semantic Notify request.".
+-spec decode_nor(map()) -> map().
+decode_nor(#{'User-Name' := Imsi, 'Origin-Host' := Host} = Avps) ->
+    Base = #{imsi => Imsi, mme_host => Host},
+    case maps:get('Terminal-Information', Avps, []) of
+        [TI | _] -> Base#{terminal_information => terminal_info(TI)};
+        _        -> Base
+    end.
+
+%% IMEI / Software-Version are optional AVPs inside the grouped
+%% Terminal-Information, so the map decode delivers each as a 1-element list.
+terminal_info(TI) ->
+    M0 = case maps:get('IMEI', TI, []) of
+             [Imei | _] -> #{<<"imei">> => Imei};
+             _          -> #{}
+         end,
+    case maps:get('Software-Version', TI, []) of
+        [Sv | _] -> M0#{<<"software_version">> => Sv};
+        _        -> M0
+    end.
 
 -doc "Build the AIA answer AVPs from udr_hss:handle_air/1's result.".
 -spec encode_air_answer(term()) -> map().
@@ -87,6 +110,13 @@ encode_pua_answer({ok, Answer}) when is_map(Answer) ->
 encode_pua_answer({error, Reason}) ->
     error_avps(Reason).
 
+-doc "Build the NOA answer AVPs from handle_nor's result.".
+-spec encode_noa_answer(term()) -> map().
+encode_noa_answer({ok, _}) ->
+    #{'Result-Code' => [?SUCCESS]};
+encode_noa_answer({error, Reason}) ->
+    error_avps(Reason).
+
 -doc "Build the CLR request AVPs (HSS-originated) for the cancel_location effect.".
 -spec clr_request(map()) -> map().
 clr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm} = Info) ->
@@ -108,6 +138,8 @@ error_avps(user_unknown) ->
     experimental(?USER_UNKNOWN);
 error_avps(unknown_eps_subscription) ->
     experimental(?UNKNOWN_EPS_SUBSCRIPTION);
+error_avps(unknown_serving_node) ->
+    experimental(?UNKNOWN_SERVING_NODE);
 error_avps(_Other) ->
     #{'Result-Code' => [?UNABLE_TO_COMPLY]}.
 

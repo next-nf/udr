@@ -29,7 +29,9 @@
          encode_ulr_answer/1, encode_ulr_answer_skip/1, encode_pua_answer/1,
          encode_pua_answer_freeze/1, clr_request/1,
          ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1,
-         nor_roundtrip/1, noa_roundtrip/1]).
+         nor_roundtrip/1, noa_roundtrip/1,
+         nor_decode/1, nor_decode_no_ti/1, encode_noa_answer/1,
+         encode_noa_unknown_serving_node/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -38,7 +40,9 @@ all() ->
      encode_ulr_answer, encode_ulr_answer_skip, encode_pua_answer,
      encode_pua_answer_freeze, clr_request,
      ula_roundtrip, clr_roundtrip, aia_answer_roundtrip,
-     nor_roundtrip, noa_roundtrip].
+     nor_roundtrip, noa_roundtrip,
+     nor_decode, nor_decode_no_ti, encode_noa_answer,
+     encode_noa_unknown_serving_node].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -237,4 +241,33 @@ nor_roundtrip(_Config) ->
 noa_roundtrip(_Config) ->
     Decoded = roundtrip('NOA', #{'Result-Code' => [2001]}),
     ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    ok.
+
+nor_decode(_Config) ->
+    %% As the diameter stack decodes them: Terminal-Information is a 1-element list,
+    %% and the optional inner IMEI / Software-Version are themselves 1-element lists.
+    Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"mme-a">>,
+            'Terminal-Information' => [#{'IMEI' => [<<"3534">>], 'Software-Version' => [<<"01">>]}]},
+    ?assertEqual(#{imsi => <<"i">>, mme_host => <<"mme-a">>,
+                   terminal_information => #{<<"imei">> => <<"3534">>,
+                                            <<"software_version">> => <<"01">>}},
+                 udr_diameter_codec:decode_nor(Req)),
+    ok.
+
+nor_decode_no_ti(_Config) ->
+    Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"mme-a">>},
+    ?assertEqual(#{imsi => <<"i">>, mme_host => <<"mme-a">>},
+                 udr_diameter_codec:decode_nor(Req)),
+    ok.
+
+encode_noa_answer(_Config) ->
+    Avps = udr_diameter_codec:encode_noa_answer({ok, #{}}),
+    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ok.
+
+encode_noa_unknown_serving_node(_Config) ->
+    Avps = udr_diameter_codec:encode_noa_answer({error, unknown_serving_node}),
+    ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 5423}],
+                 maps:get('Experimental-Result', Avps)),
+    ?assertEqual(error, maps:find('Result-Code', Avps)),
     ok.
