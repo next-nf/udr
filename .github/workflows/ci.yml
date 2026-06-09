@@ -120,16 +120,20 @@ jobs:
       - name: Build (linux/amd64)
         uses: redhat-actions/buildah-build@b13805753a7ac93d18d14b22f6ebdf8499a3a95e # v2.9
         with:
-          image: ghcr.io/next-nf/udr
+          image: udr
           tags: ${{ github.sha }}-amd64
           containerfiles: ./container/Containerfile
           context: .
 
+      # push-to-registry needs the registry separately from the (short) image
+      # name; with image=udr + registry=ghcr.io/next-nf the pushed ref is
+      # ghcr.io/next-nf/udr:<sha>-amd64 (what the manifest job references).
       - name: Push (linux/amd64)
         uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2.8
         with:
-          image: ghcr.io/next-nf/udr
+          image: udr
           tags: ${{ github.sha }}-amd64
+          registry: ghcr.io/next-nf
 
   build-arm64:
     needs: test
@@ -153,7 +157,7 @@ jobs:
       - name: Build (linux/arm64)
         uses: redhat-actions/buildah-build@b13805753a7ac93d18d14b22f6ebdf8499a3a95e # v2.9
         with:
-          image: ghcr.io/next-nf/udr
+          image: udr
           tags: ${{ github.sha }}-arm64
           containerfiles: ./container/Containerfile
           context: .
@@ -161,8 +165,9 @@ jobs:
       - name: Push (linux/arm64)
         uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2.8
         with:
-          image: ghcr.io/next-nf/udr
+          image: udr
           tags: ${{ github.sha }}-arm64
+          registry: ghcr.io/next-nf
 
   manifest:
     needs: [build-amd64, build-arm64]
