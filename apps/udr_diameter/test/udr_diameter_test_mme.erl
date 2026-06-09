@@ -19,7 +19,7 @@
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
 
--export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, nor/1, received_clr/2, recorded_clr/1, received_idr/2, recorded_idr/1]).
+-export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, nor/1, received_clr/2, recorded_clr/1, received_idr/2, recorded_idr/1, received_dsr/2, recorded_dsr/1]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
 
@@ -174,6 +174,18 @@ received_idr(Imsi, Timeout) ->
 recorded_idr(Imsi) ->
     persistent_term:get({?MODULE, idr, Imsi}, undefined).
 
+-spec received_dsr(binary(), non_neg_integer()) -> boolean().
+received_dsr(Imsi, Timeout) ->
+    case persistent_term:get({?MODULE, dsr, Imsi}, undefined) of
+        undefined when Timeout =< 0 -> false;
+        undefined -> timer:sleep(50), received_dsr(Imsi, Timeout - 50);
+        _Avps     -> true
+    end.
+
+-spec recorded_dsr(binary()) -> map() | undefined.
+recorded_dsr(Imsi) ->
+    persistent_term:get({?MODULE, dsr, Imsi}, undefined).
+
 %% --- diameter_app callbacks ---
 
 peer_up(_Svc, _Peer, State)   -> State.
@@ -232,6 +244,15 @@ handle_request(#diameter_packet{msg = ['IDR' | Avps]}, _Svc, {_Ref, Caps}) ->
     ok = persistent_term:put({?MODULE, idr, Imsi}, Avps),
     #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
     {reply, ['IDA' | #{'Session-Id' => maps:get('Session-Id', Avps),
+                       'Result-Code' => [2001],
+                       'Auth-Session-State' => 1,
+                       'Origin-Host' => OH,
+                       'Origin-Realm' => OR}]};
+handle_request(#diameter_packet{msg = ['DSR' | Avps]}, _Svc, {_Ref, Caps}) ->
+    Imsi = maps:get('User-Name', Avps),
+    ok = persistent_term:put({?MODULE, dsr, Imsi}, Avps),
+    #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
+    {reply, ['DSA' | #{'Session-Id' => maps:get('Session-Id', Avps),
                        'Result-Code' => [2001],
                        'Auth-Session-State' => 1,
                        'Origin-Host' => OH,
