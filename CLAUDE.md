@@ -14,7 +14,7 @@ rebar3 ct             # run all Common Test suites
 rebar3 dialyzer       # type analysis (CI runs this on every push/PR)
 rebar3 shell          # interactive release: Diameter :3868, SBI :8080, provisioning :8090, ETS backend
 rebar3 ex_doc         # generate API docs from EEP-48 -doc/-moduledoc (NOT edoc)
-rebar3 as docker release   # assemble the prod release with container config (CI runs this as a sanity check)
+rebar3 as container release   # assemble the prod release with container config (the image build runs this)
 ```
 
 Run a single suite / case / group:
@@ -25,7 +25,9 @@ rebar3 ct --suite=apps/udr_hss/test/udr_hss_SUITE --case=air_returns_vectors
 rebar3 ct --dir=apps/udr_data/test
 ```
 
-The CI pipeline (`.github/workflows/ci.yml`) is the source of truth for the expected toolchain: **OTP 29**, **rebar3 3.26.0**. It runs compile → dialyzer → ct → `rebar3 as docker release`. Match it before claiming work is done.
+The CI pipeline (`.github/workflows/ci.yml`) is the source of truth for the expected toolchain: **OTP 29**, **rebar3 3.26.0**. The `test` job runs compile → dialyzer → ct; the image is built separately (see below). Match it before claiming work is done.
+
+The container image is built with **podman/buildah** (not docker). Its assets live in `container/` (`Containerfile`, `container.sys.config`); the build context is the repo root and `.containerignore` controls it. Build locally with `podman build -f container/Containerfile -t udr .`. CI builds multi-arch (linux/amd64 + linux/arm64) on native runners and merges a manifest.
 
 ## Architecture
 
@@ -60,7 +62,7 @@ Key mechanisms that span multiple files:
 - **Nudr-DR SBI** `:8080` — `/nudr-dr/v1/subscription-data/{ueId}/...` (auth subscription, am-data, amf-3gpp-access context). Cowboy handlers in `udr_sbi`.
 - **Provisioning API** `:8090` — `PUT/GET/DELETE /provision/v1/subscribers/{imsi}`. Cowboy handlers in `udr_provision`.
 
-Runtime config: `config/sys.config` (local), `config/docker.sys.config` (container, binds 0.0.0.0). MILENAGE auth crypto (f1–f5/f1*/f5*/OPc per TS 35.205/206) lives in `udr_crypto` behind a pluggable algorithm behaviour.
+Runtime config: `config/sys.config` (local), `container/container.sys.config` (container, binds 0.0.0.0). MILENAGE auth crypto (f1–f5/f1*/f5*/OPc per TS 35.205/206) lives in `udr_crypto` behind a pluggable algorithm behaviour.
 
 ## Gotchas when writing tests
 

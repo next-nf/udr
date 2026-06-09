@@ -72,7 +72,7 @@ jobs:
         run: rebar3 ct
 
       - name: Release assembly sanity (covers PRs, which don't build the image)
-        run: rebar3 as docker release
+        run: rebar3 as container release
 
       # GitHub bills artifacts by their UNCOMPRESSED size and only serves them as
       # a .zip, so upload a single pre-compressed tarball instead of the raw tree.
@@ -91,52 +91,121 @@ jobs:
           path: ct-logs.tar.xz
           if-no-files-found: ignore
 
-  image:
-    # Build & push the container only after tests pass, and never on PRs:
-    # push to main -> :latest (+ :sha); a v* tag -> semver tags.
+  # Multi-arch image with podman/buildah (no docker engine, no buildx). Each arch
+  # builds natively on its own runner -- no QEMU -- and pushes a throwaway
+  # arch-suffixed tag (ghcr.io/next-nf/udr:<sha>-amd64 / -arm64); the manifest job
+  # then assembles a multi-arch manifest list under the real tags. The per-arch
+  # tags are reaped by the scheduled ghcr-cleanup workflow (non-release images).
+  build-amd64:
     needs: test
-    if: >-
+    if: &image-if >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      # No docker/setup-buildx-action: its docker-container driver pulls
-      # moby/buildkit from Docker Hub (anonymous -> rate-limited, intermittent
-      # timeouts). We build single-arch amd64, so build-push-action uses the
-      # daemon's built-in BuildKit instead -- no Docker Hub dependency. (If we
-      # add arm64 later, reintroduce buildx with a non-Docker-Hub buildkit
-      # source or Docker Hub auth.)
       - name: Log in to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image metadata
-        id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+      - name: Build (linux/amd64)
+        uses: redhat-actions/buildah-build@b13805753a7ac93d18d14b22f6ebdf8499a3a95e # v2.9
         with:
-          images: ghcr.io/next-nf/udr
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push (linux/amd64)
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
-        with:
+          image: ghcr.io/next-nf/udr
+          tags: ${{ github.sha }}-amd64
+          containerfiles: ./container/Containerfile
           context: .
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Push (linux/amd64)
+        uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2.8
+        with:
+          image: ghcr.io/next-nf/udr
+          tags: ${{ github.sha }}-amd64
+
+  build-arm64:
+    needs: test
+    if: *image-if
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (linux/arm64)
+        uses: redhat-actions/buildah-build@b13805753a7ac93d18d14b22f6ebdf8499a3a95e # v2.9
+        with:
+          image: ghcr.io/next-nf/udr
+          tags: ${{ github.sha }}-arm64
+          containerfiles: ./container/Containerfile
+          context: .
+
+      - name: Push (linux/arm64)
+        uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2.8
+        with:
+          image: ghcr.io/next-nf/udr
+          tags: ${{ github.sha }}-arm64
+
+  manifest:
+    needs: [build-amd64, build-arm64]
+    if: *image-if
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/next-nf/udr
+    steps:
+      - name: Log in to GHCR
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Final tags (mirrors the old docker/metadata-action set):
+      #   sha-<short>           always
+      #   latest                main only
+      #   <version>, <maj.min>  on v* tags (e.g. v1.2.3 -> 1.2.3, 1.2)
+      - name: Compute tags
+        id: tags
+        run: |
+          tags="sha-$(echo "${GITHUB_SHA}" | cut -c1-7)"
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            tags="$tags latest"
+          fi
+          case "${GITHUB_REF}" in
+            refs/tags/v*)
+              ver="${GITHUB_REF#refs/tags/v}"
+              tags="$tags $ver ${ver%.*}"
+              ;;
+          esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble and push multi-arch manifest
+        run: |
+          buildah manifest create udr
+          buildah manifest add udr "docker://${IMAGE}:${GITHUB_SHA}-amd64"
+          buildah manifest add udr "docker://${IMAGE}:${GITHUB_SHA}-arm64"
+          for t in ${{ steps.tags.outputs.tags }}; do
+            echo "Pushing ${IMAGE}:${t}"
+            buildah manifest push --all udr "docker://${IMAGE}:${t}"
+          done
