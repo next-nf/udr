@@ -47,7 +47,11 @@ do_ulr(#{imsi := Imsi, mme_host := NewHost, mme_realm := NewRealm} = Req) ->
         {error, not_found} ->
             {error, user_unknown};
         {ok, Profile} ->
-            Effects = clr_effect_if_moved(Imsi, NewHost),
+            CancelType = case maps:get(initial_attach, Req, false) of
+                             true  -> initial_attach_procedure;
+                             false -> mme_update_procedure
+                         end,
+            Effects = clr_effect_if_moved(Imsi, NewHost, CancelType),
             Reg = #{<<"serving_mme_host">>  => NewHost,
                     <<"serving_mme_realm">> => NewRealm,
                     <<"status">>            => <<"registered">>,
@@ -55,14 +59,19 @@ do_ulr(#{imsi := Imsi, mme_host := NewHost, mme_realm := NewRealm} = Req) ->
                     <<"visited_plmn">>      => maps:get(visited_plmn, Req, <<>>),
                     <<"updated_at">>        => erlang:system_time(second)},
             ok = udr_data:put_3gpp_access_registration(Imsi, Reg),
-            {ok, #{subscription_data => Profile}, Effects}
+            Answer = case maps:get(skip_subscriber_data, Req, false) of
+                         true  -> #{};
+                         false -> #{subscription_data => Profile}
+                     end,
+            {ok, Answer, Effects}
     end.
 
-clr_effect_if_moved(Imsi, NewHost) ->
+clr_effect_if_moved(Imsi, NewHost, CancelType) ->
     case udr_data:get_3gpp_access_registration(Imsi) of
         {ok, #{<<"serving_mme_host">> := OldHost} = Old} when OldHost =/= NewHost ->
             [{cancel_location, #{imsi => Imsi, mme_host => OldHost,
-                                 mme_realm => maps:get(<<"serving_mme_realm">>, Old, <<>>)}}];
+                                 mme_realm => maps:get(<<"serving_mme_realm">>, Old, <<>>),
+                                 cancellation_type => CancelType}}];
         _ ->
             []
     end.
