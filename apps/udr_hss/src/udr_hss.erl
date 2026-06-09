@@ -85,22 +85,17 @@ insert_subscriber_data(Imsi) ->
     in_session(Imsi, fun() -> do_isd(Imsi) end).
 
 do_isd(Imsi) ->
-    case udr_data:get_3gpp_access_registration(Imsi) of
-        {ok, #{<<"ue_purged">> := true}} ->
+    case active_registration(Imsi) of
+        {error, not_registered} ->
             {error, not_registered};
-        {ok, #{<<"serving_mme_host">> := Host} = Reg} ->
+        {ok, Reg} ->
             case udr_data:get_subscription_data(Imsi) of
                 {ok, Profile} ->
                     {ok, [{insert_subscriber_data,
-                           #{imsi      => Imsi,
-                             mme_host  => Host,
-                             mme_realm => maps:get(<<"serving_mme_realm">>, Reg, <<>>),
-                             subscription_data => Profile}}]};
+                           (node_info(Imsi, Reg))#{subscription_data => Profile}}]};
                 {error, not_found} ->
                     {error, not_found}
-            end;
-        {error, not_registered} ->
-            {error, not_registered}
+            end
     end.
 
 -doc "Decide an HSS-initiated Delete Subscriber Data withdrawal: if the subscriber is\n"
@@ -112,33 +107,45 @@ delete_subscriber_data(Imsi, Flags) ->
     in_session(Imsi, fun() -> do_dsd(Imsi, Flags) end).
 
 do_dsd(Imsi, Flags) ->
-    case udr_data:get_3gpp_access_registration(Imsi) of
-        {ok, #{<<"ue_purged">> := true}} ->
-            {error, not_registered};
-        {ok, #{<<"serving_mme_host">> := Host} = Reg} ->
-            {ok, [{delete_subscriber_data,
-                   #{imsi      => Imsi,
-                     mme_host  => Host,
-                     mme_realm => maps:get(<<"serving_mme_realm">>, Reg, <<>>),
-                     dsr_flags => Flags}}]};
+    case active_registration(Imsi) of
         {error, not_registered} ->
-            {error, not_registered}
+            {error, not_registered};
+        {ok, Reg} ->
+            {ok, [{delete_subscriber_data,
+                   (node_info(Imsi, Reg))#{dsr_flags => Flags}}]}
     end.
 
+%% Emit a Cancel Location toward the previous serving node only when a different,
+%% still-active (non-purged) node was registered. A purged previous node already
+%% dropped the UE, so active_registration/1 excludes it and no CLR is sent.
 clr_effect_if_moved(Imsi, NewHost, CancelType) ->
-    case udr_data:get_3gpp_access_registration(Imsi) of
+    case active_registration(Imsi) of
         {ok, #{<<"serving_mme_host">> := OldHost} = Old} when OldHost =/= NewHost ->
-            case maps:get(<<"ue_purged">>, Old, false) of
-                true ->
-                    [];   %% the purged node already dropped the UE; suppress Cancel Location
-                false ->
-                    [{cancel_location, #{imsi => Imsi, mme_host => OldHost,
-                                         mme_realm => maps:get(<<"serving_mme_realm">>, Old, <<>>),
-                                         cancellation_type => CancelType}}]
-            end;
+            [{cancel_location, (node_info(Imsi, Old))#{cancellation_type => CancelType}}];
         _ ->
             []
     end.
+
+%% The subscriber's active 3GPP access registration: a stored registration whose
+%% serving node has NOT been marked UE-purged. Returns {error, not_registered} for
+%% no registration, a purged registration, or one missing its serving-node identity.
+%% This is the single place the "active serving node" rule lives (used by ISD, DSD,
+%% NOR and Cancel Location); keeping it here stops any one caller forgetting the
+%% purge check or crashing on a malformed registration document.
+-spec active_registration(binary()) -> {ok, map()} | {error, not_registered}.
+active_registration(Imsi) ->
+    case udr_data:get_3gpp_access_registration(Imsi) of
+        {ok, #{<<"ue_purged">> := true}}           -> {error, not_registered};
+        {ok, #{<<"serving_mme_host">> := _} = Reg} -> {ok, Reg};
+        _                                          -> {error, not_registered}
+    end.
+
+%% The semantic serving-node descriptor for an HSS-initiated effect, derived from a
+%% registration document.
+node_info(Imsi, Reg) ->
+    #{imsi      => Imsi,
+      mme_host  => maps:get(<<"serving_mme_host">>, Reg),
+      mme_realm => maps:get(<<"serving_mme_realm">>, Reg, <<>>)}.
 
 -doc "Handle a Purge-UE request: if the purging node is the registered serving MME, mark\n"
      "the subscriber UE-purged and freeze the M-TMSI; otherwise succeed without freezing.\n"
@@ -179,7 +186,9 @@ do_nor(#{imsi := Imsi} = Req) ->
         {error, not_found} ->
             {error, user_unknown};
         {ok, _Profile} ->
-            case udr_data:get_3gpp_access_registration(Imsi) of
+            %% active_registration/1 excludes a purged registration, so a NOR from a
+            %% node that already purged the UE correctly gets unknown_serving_node.
+            case active_registration(Imsi) of
                 {ok, #{<<"serving_mme_host">> := Origin} = Reg} when Origin =/= undefined ->
                     Reg1 = case maps:get(terminal_information, Req, undefined) of
                                undefined -> Reg;

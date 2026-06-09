@@ -20,12 +20,14 @@
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([isd_registered_returns_effect/1,
          isd_not_registered_returns_error/1,
-         isd_purged_returns_not_registered/1]).
+         isd_purged_returns_not_registered/1,
+         isd_malformed_registration_returns_not_registered/1]).
 
 all() ->
     [isd_registered_returns_effect,
      isd_not_registered_returns_error,
-     isd_purged_returns_not_registered].
+     isd_purged_returns_not_registered,
+     isd_malformed_registration_returns_not_registered].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -67,5 +69,14 @@ isd_purged_returns_not_registered(_Config) ->
     provision(Imsi),
     ok = register_mme(Imsi, <<"mme-a">>),
     {ok, _, _} = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-a">>}),
+    ?assertEqual({error, not_registered}, udr_hss:insert_subscriber_data(Imsi)),
+    ok.
+
+%% A registration document missing its serving-node identity must not crash the
+%% handler (function_clause inside the per-IMSI lock) — it is treated as inactive.
+isd_malformed_registration_returns_not_registered(_Config) ->
+    Imsi = <<"001010000000404">>,
+    provision(Imsi),
+    ok = udr_data:put_3gpp_access_registration(Imsi, #{<<"status">> => <<"registered">>}),
     ?assertEqual({error, not_registered}, udr_hss:insert_subscriber_data(Imsi)),
     ok.

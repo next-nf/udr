@@ -20,12 +20,14 @@
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([nor_from_registered_mme_stores_terminal_info/1,
          nor_unknown_subscriber_returns_user_unknown/1,
-         nor_from_unregistered_node_returns_unknown_serving_node/1]).
+         nor_from_unregistered_node_returns_unknown_serving_node/1,
+         nor_from_purged_registration_returns_unknown_serving_node/1]).
 
 all() ->
     [nor_from_registered_mme_stores_terminal_info,
      nor_unknown_subscriber_returns_user_unknown,
-     nor_from_unregistered_node_returns_unknown_serving_node].
+     nor_from_unregistered_node_returns_unknown_serving_node,
+     nor_from_purged_registration_returns_unknown_serving_node].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -69,4 +71,15 @@ nor_from_unregistered_node_returns_unknown_serving_node(_Config) ->
     ok = register_mme(Imsi, <<"mme-a">>),
     ?assertEqual({error, unknown_serving_node},
                  udr_hss:handle_nor(#{imsi => Imsi, mme_host => <<"mme-x">>})),
+    ok.
+
+%% Even the registered serving node may not post NOR once the UE is purged: the
+%% registration is no longer active, so the HSS answers unknown_serving_node.
+nor_from_purged_registration_returns_unknown_serving_node(_Config) ->
+    Imsi = <<"001010000000303">>,
+    provision(Imsi),
+    ok = register_mme(Imsi, <<"mme-a">>),
+    {ok, _, _} = udr_hss:handle_pur(#{imsi => Imsi, mme_host => <<"mme-a">>}),
+    ?assertEqual({error, unknown_serving_node},
+                 udr_hss:handle_nor(#{imsi => Imsi, mme_host => <<"mme-a">>})),
     ok.

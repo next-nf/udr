@@ -117,28 +117,23 @@ reply(Name, #{'Session-Id' := Sid}, Caps, AnswerAvps, Effects) ->
      "serving node via IDR (fire-and-forget). {error, not_registered} if not registered.".
 -spec push_subscriber_data(binary()) -> ok | {error, not_registered | not_found}.
 push_subscriber_data(Imsi) ->
-    case udr_hss:insert_subscriber_data(Imsi) of
-        {ok, Effects} -> run_effects(Effects), ok;
-        {error, _} = E -> E
-    end.
+    run_decided(udr_hss:insert_subscriber_data(Imsi)).
 
 -doc "HSS-initiated: withdraw the named data classes (DSR-Flags bitmask) from the\n"
      "subscriber's registered serving node via DSR (fire-and-forget).".
 -spec delete_subscriber_data(binary(), non_neg_integer()) -> ok | {error, not_registered}.
 delete_subscriber_data(Imsi, Flags) ->
-    case udr_hss:delete_subscriber_data(Imsi, Flags) of
-        {ok, Effects} -> run_effects(Effects), ok;
-        {error, _} = E -> E
-    end.
+    run_decided(udr_hss:delete_subscriber_data(Imsi, Flags)).
 
 -doc "HSS-initiated: fan an RSR out to every distinct registered serving node\n"
      "(fire-and-forget). Used after a recovery event.".
 -spec reset() -> ok | {error, term()}.
 reset() ->
-    case udr_hss:reset() of
-        {ok, Effects} -> run_effects(Effects), ok;
-        {error, _} = E -> E
-    end.
+    run_decided(udr_hss:reset()).
+
+%% Run the effects an HSS decider returned, or pass its error through unchanged.
+run_decided({ok, Effects})    -> run_effects(Effects), ok;
+run_decided({error, _} = E)   -> E.
 
 run_effects(Effects) -> lists:foreach(fun run_effect/1, Effects).
 
