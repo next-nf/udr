@@ -21,7 +21,7 @@
 
 -export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
          encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
-         clr_request/1, idr_request/1]).
+         clr_request/1, idr_request/1, dsr_request/1]).
 
 -define(SUCCESS, 2001).
 -define(UNABLE_TO_COMPLY, 5012).
@@ -134,6 +134,15 @@ idr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm, subscription_d
       'Destination-Host'  => Host,
       'Destination-Realm' => Realm,
       'Subscription-Data' => [subscription_data(Profile)]}.
+
+-doc "Build the DSR request AVPs (HSS-originated) for the delete_subscriber_data effect.\n"
+     "dsr_flags is the TS 29.272 7.3.25 bitmask of data classes to withdraw.".
+-spec dsr_request(map()) -> map().
+dsr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm, dsr_flags := Flags}) ->
+    #{'User-Name' => Imsi,
+      'Destination-Host'  => Host,
+      'Destination-Realm' => Realm,
+      'DSR-Flags' => Flags}.
 
 %% TS 29.272 §7.3.24 Cancellation-Type wire values.
 cancellation_type(mme_update_procedure)     -> 0;

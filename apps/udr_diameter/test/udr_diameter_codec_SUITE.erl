@@ -34,7 +34,7 @@
          encode_noa_unknown_serving_node/1,
          encode_air_answer_auth_data_unavailable/1,
          idr_roundtrip/1, ida_roundtrip/1,
-         dsr_roundtrip/1, dsa_roundtrip/1]).
+         dsr_request/1, dsr_roundtrip/1, dsa_roundtrip/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -48,7 +48,7 @@ all() ->
      encode_noa_unknown_serving_node,
      encode_air_answer_auth_data_unavailable,
      idr_roundtrip, ida_roundtrip,
-     dsr_roundtrip, dsa_roundtrip].
+     dsr_request, dsr_roundtrip, dsa_roundtrip].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -283,6 +283,16 @@ encode_air_answer_auth_data_unavailable(_Config) ->
     ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 4181}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
+    ok.
+
+dsr_request(_Config) ->
+    Avps = udr_diameter_codec:dsr_request(
+             #{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
+               dsr_flags => 1}),
+    ?assertEqual(<<"i">>, maps:get('User-Name', Avps)),
+    ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
+    ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
+    ?assertEqual(1, maps:get('DSR-Flags', Avps)),
     ok.
 
 idr_request(_Config) ->
