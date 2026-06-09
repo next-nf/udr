@@ -22,9 +22,9 @@
 -include_lib("diameter/include/diameter.hrl").
 
 -export([all/0]).
--export([aia_roundtrip/1]).
+-export([aia_roundtrip/1, open5gs_ulr_decodes_clean/1]).
 
-all() -> [aia_roundtrip].
+all() -> [aia_roundtrip, open5gs_ulr_decodes_clean].
 
 %% ---------------------------------------------------------------------------
 %% Tests
@@ -74,3 +74,41 @@ aia_roundtrip(_Config) ->
     ?assertEqual(<<0:128>>, maps:get('RAND',  DecodedVector)),
     ?assertEqual(<<3:256>>, maps:get('KASME', DecodedVector)),
     ok.
+
+-doc "Decode the real Open5GS S6a Update-Location-Request captured during an srsRAN
+attach (demos/srsran-attach/s6a-air.pcap, frame 9) and assert it decodes cleanly.
+Open5GS includes Terminal-Information (IMEI + Software-Version) and
+UE-SRVCC-Capability; these were absent from the dictionary, so the real ULR decoded
+with errors (5001 AVP_UNSUPPORTED on 1401, 5008 AVP_NOT_ALLOWED on 1615) and crashed
+the HSS request process -- the actual cause of the failed attach (the AIR, contrary
+to the original report, decodes and answers fine).".
+open5gs_ulr_decodes_clean(_Config) ->
+    %% Verbatim tcp.payload of the captured ULR (command 316, S6a).
+    Hex =
+          "0100013cc000013c0100002341dbbb735413fba2000001074000002b6d6d652e"
+          "6f70656e766572736f3b313738303938373230313b32303b6170705f73366100"
+          "000001154000000c0000000100000108400000156d6d652e6f70656e76657273"
+          "6f00000000000128400000116f70656e766572736f0000000000011b40000011"
+          "6f70656e766572736f0000000000000140000017323038393630313030303030"
+          "3030310000000579c0000038000028af0000057ac000001a000028af33353334"
+          "3930303639383733333100000000057bc000000e000028af3533000000000408"
+          "80000010000028af000003ec0000057dc0000010000028af000000020000057f"
+          "c000000f000028af02f869000000064f80000010000028af0000000000000104"
+          "400000200000010a4000000c000028af000001024000000c01000023",
+    Bin = hex_to_bin(Hex),
+    Hdr = diameter_codec:decode_header(Bin),
+    Opts = #{string_decode => false, decode_format => map},
+    #diameter_packet{msg = Msg, errors = Errors} =
+        diameter_codec:decode(diameter_3gpp_s6a, Opts,
+                              #diameter_packet{header = Hdr, bin = Bin}),
+    ?assertEqual([], Errors),
+    ['ULR' | Map] = Msg,
+    ?assertEqual(1004, maps:get('RAT-Type', Map)),
+    [TermInfo] = maps:get('Terminal-Information', Map),
+    ?assertEqual([<<"35349006987331">>], maps:get('IMEI', TermInfo)),
+    ?assertMatch([_], maps:get('UE-SRVCC-Capability', Map)),
+    ok.
+
+%% "0a1b" -> <<10, 27>>
+hex_to_bin(Hex) ->
+    << <<(list_to_integer([A, B], 16))>> || <<A, B>> <= list_to_binary(Hex) >>.

@@ -52,12 +52,20 @@
    Service-Selection                          493   UTF8String   M
    Max-Requested-Bandwidth-UL                 516   Unsigned32   MV
    Max-Requested-Bandwidth-DL                 515   Unsigned32   MV
+   Terminal-Information                       1401  Grouped      MV
+   IMEI                                       1402  UTF8String   MV
+   Software-Version                           1403  UTF8String   MV
+   UE-SRVCC-Capability                        1615  Unsigned32   V
 
 @grouped
    Requested-EUTRAN-Authentication-Info ::= < AVP Header: 1408 10415 >
         [ Number-Of-Requested-Vectors ]
         [ Immediate-Response-Preferred ]
         [ Re-Synchronization-Info ]
+
+   Terminal-Information ::= < AVP Header: 1401 10415 >
+        [ IMEI ]
+        [ Software-Version ]
 
    Authentication-Info ::= < AVP Header: 1413 10415 >
       * [ E-UTRAN-Vector ]
@@ -127,6 +135,8 @@
         { RAT-Type }
         { ULR-Flags }
         { Visited-PLMN-Id }
+        [ Terminal-Information ]
+        [ UE-SRVCC-Capability ]
         [ Vendor-Specific-Application-Id ]
         [ Destination-Host ]
       * [ Proxy-Info ]
