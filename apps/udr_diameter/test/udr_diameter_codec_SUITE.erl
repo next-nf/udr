@@ -31,7 +31,8 @@
          ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1,
          nor_roundtrip/1, noa_roundtrip/1,
          nor_decode/1, nor_decode_no_ti/1, encode_noa_answer/1,
-         encode_noa_unknown_serving_node/1]).
+         encode_noa_unknown_serving_node/1,
+         encode_air_answer_auth_data_unavailable/1]).
 
 all() ->
     [air_decode, air_decode_resync, air_decode_default_numvectors,
@@ -42,7 +43,8 @@ all() ->
      ula_roundtrip, clr_roundtrip, aia_answer_roundtrip,
      nor_roundtrip, noa_roundtrip,
      nor_decode, nor_decode_no_ti, encode_noa_answer,
-     encode_noa_unknown_serving_node].
+     encode_noa_unknown_serving_node,
+     encode_air_answer_auth_data_unavailable].
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
@@ -268,6 +270,13 @@ encode_noa_answer(_Config) ->
 encode_noa_unknown_serving_node(_Config) ->
     Avps = udr_diameter_codec:encode_noa_answer({error, unknown_serving_node}),
     ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 5423}],
+                 maps:get('Experimental-Result', Avps)),
+    ?assertEqual(error, maps:find('Result-Code', Avps)),
+    ok.
+
+encode_air_answer_auth_data_unavailable(_Config) ->
+    Avps = udr_diameter_codec:encode_air_answer({error, authentication_data_unavailable}),
+    ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 4181}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
     ok.

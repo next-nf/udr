@@ -28,6 +28,7 @@
 -define(USER_UNKNOWN, 5001).
 -define(UNKNOWN_EPS_SUBSCRIPTION, 5420).
 -define(UNKNOWN_SERVING_NODE, 5423).
+-define(AUTH_DATA_UNAVAILABLE, 4181).
 -define(VENDOR_3GPP, 10415).
 
 -doc "Decode an AIR AVP map into the semantic AIR request for udr_hss:handle_air/1.".
@@ -140,6 +141,8 @@ error_avps(unknown_eps_subscription) ->
     experimental(?UNKNOWN_EPS_SUBSCRIPTION);
 error_avps(unknown_serving_node) ->
     experimental(?UNKNOWN_SERVING_NODE);
+error_avps(authentication_data_unavailable) ->
+    experimental(?AUTH_DATA_UNAVAILABLE);
 error_avps(_Other) ->
     #{'Result-Code' => [?UNABLE_TO_COMPLY]}.
 
