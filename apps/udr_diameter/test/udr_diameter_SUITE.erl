@@ -20,6 +20,7 @@
 -include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
 -include_lib("udr_diameter/include/s6a_result_codes.hrl").
 -include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+-include_lib("udr_diameter/include/s6a_flags.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([air/1, ulr_then_clr/1, pur/1, nor/1, idr/1, dsr/1, rsr/1,
          common_dictionary_is_rfc6733/1, decode_errors_answer_not_crash/1]).
@@ -95,10 +96,10 @@ idr(Config) ->
 dsr(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
-    ok = udr_diameter_s6a:delete_subscriber_data(Imsi, 1),
+    ok = udr_diameter_s6a:delete_subscriber_data(Imsi, ?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL),
     ?assertEqual(true, udr_diameter_test_mme:received_dsr(Imsi, 2000)),
     Dsr = udr_diameter_test_mme:recorded_dsr(Imsi),
-    ?assertEqual(1, maps:get('DSR-Flags', Dsr)),
+    ?assertEqual(?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL, maps:get('DSR-Flags', Dsr)),
     ok.
 
 rsr(Config) ->

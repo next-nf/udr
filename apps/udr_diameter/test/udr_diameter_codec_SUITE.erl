@@ -21,6 +21,7 @@
 -include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
 -include_lib("udr_diameter/include/s6a_result_codes.hrl").
 -include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+-include_lib("udr_diameter/include/s6a_flags.hrl").
 -include("s6a_test.hrl").
 
 -define(DICT, diameter_3gpp_s6a).
@@ -99,11 +100,12 @@ ulr_decode(_Config) ->
     ok.
 
 ulr_decode_flags(_Config) ->
-    %% Skip-Subscriber-Data (bit 2 = 4) and Initial-Attach (bit 5 = 32) both set = 36.
+    Flags = ?ULR_FLAG_SKIP_SUBSCRIBER_DATA bor ?ULR_FLAG_INITIAL_ATTACH,
     Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"m">>, 'Origin-Realm' => <<"r">>,
-            'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN', 'Visited-PLMN-Id' => <<0,0,0>>, 'ULR-Flags' => 36},
+            'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN', 'Visited-PLMN-Id' => <<0,0,0>>,
+            'ULR-Flags' => Flags},
     D = udr_diameter_codec:decode_ulr(Req),
-    ?assertEqual(36, maps:get(ulr_flags, D)),
+    ?assertEqual(Flags, maps:get(ulr_flags, D)),
     ?assertEqual(true, maps:get(skip_subscriber_data, D)),
     ?assertEqual(true, maps:get(initial_attach, D)),
     ok.
@@ -297,11 +299,11 @@ encode_air_answer_auth_data_unavailable(_Config) ->
 dsr_request(_Config) ->
     Avps = udr_diameter_codec:dsr_request(
              #{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
-               dsr_flags => 1}),
+               dsr_flags => ?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL}),
     ?assertEqual(<<"i">>, maps:get('User-Name', Avps)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
     ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
-    ?assertEqual(1, maps:get('DSR-Flags', Avps)),
+    ?assertEqual(?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL, maps:get('DSR-Flags', Avps)),
     ok.
 
 idr_request(_Config) ->
@@ -339,13 +341,14 @@ dsr_roundtrip(_Config) ->
     Common = #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
                'Origin-Host' => <<"hss">>, 'Origin-Realm' => <<"r">>},
     Dsr = Common#{'Destination-Host' => <<"mme-a">>, 'Destination-Realm' => <<"epc">>,
-                  'User-Name' => <<"001010000000001">>, 'DSR-Flags' => 1},
+                  'User-Name' => <<"001010000000001">>,
+                  'DSR-Flags' => ?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL},
     Hdr = #diameter_header{version = 1, end_to_end_id = 1, hop_by_hop_id = 1, is_request = true},
     #diameter_packet{bin = Bin} =
         diameter_codec:encode(?DICT, #diameter_packet{header = Hdr, msg = ['DSR' | Dsr]}),
     #diameter_packet{msg = ['DSR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
     ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
-    ?assertEqual(1, maps:get('DSR-Flags', Decoded)),
+    ?assertEqual(?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL, maps:get('DSR-Flags', Decoded)),
     ok.
 
 dsa_roundtrip(_Config) ->

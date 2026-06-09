@@ -27,4 +27,7 @@
 %% PUA-Flags (TS 29.272 7.3.48)
 -define(PUA_FLAG_FREEZE_M_TMSI,        16#1).   %% bit 0
 
+%% DSR-Flags (TS 29.272 7.3.25)
+-define(DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL, 16#1).  %% bit 0
+
 -endif.
