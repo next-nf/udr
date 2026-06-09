@@ -1,10 +1,15 @@
 name: ghcr-cleanup
 
 # GHCR has no native retention/TTL for container images, so this scheduled job
-# prunes the non-release images from ghcr.io/next-nf/udr: the per-commit `sha-*`
-# images and the orphaned untagged manifests left behind when `latest`/semver
-# tags move, once they are older than a month. Every release is always kept:
-# `latest` + semver (e.g. 0.1, 0.1.0).
+# prunes the non-release images from ghcr.io/next-nf/udr, once they are older
+# than a month:
+#   - the per-commit `sha-*` manifest lists,
+#   - the throwaway per-arch build tags `<full-sha>-amd64` / `<full-sha>-arm64`
+#     that the build jobs push for the manifest job to assemble (see ci.yml), and
+#   - any orphaned untagged manifests left behind when tags move.
+# Every release is always kept: `latest` + semver (e.g. 0.1, 0.1.0). The
+# `older-than` gate means a multi-arch list's *current* per-arch children (always
+# recent) are never matched, so live images are never broken.
 on:
   schedule:
     - cron: '0 4 * * 1' # weekly, Monday 04:00 UTC
@@ -34,8 +39,9 @@ jobs:
           packages: udr
           # Never delete a release: latest + semver tags (X.Y, X.Y.Z).
           exclude-tags: 'latest,*.*,*.*.*'
-          # Delete the per-commit images...
-          delete-tags: 'sha-*'
+          # Delete the per-commit manifest lists and the throwaway per-arch
+          # build tags (<full-sha>-amd64 / -arm64)...
+          delete-tags: 'sha-*,*-amd64,*-arm64'
           # ...and the orphaned manifests left when tags move...
           delete-untagged: true
           # ...but only once they are older than a month.
