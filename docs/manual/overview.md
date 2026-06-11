@@ -36,14 +36,14 @@ The system is a [rebar3](glossary.md) umbrella. Each application has a single, w
 | `udr_hss` | [S6a](glossary.md) HSS application logic: [AIR](glossary.md), [ULR](glossary.md), [PUR](glossary.md). |
 | `udr_diameter` | The S6a Diameter wire layer: codec and transport. Originates the HSS-initiated [CLR](glossary.md). |
 | `udr_sbi` | The Nudr-flavoured 5G [SBI](glossary.md) data-repository HTTP server. |
-| `udr_provision` | The admin provisioning HTTP API. |
+| `udr_api` | The admin provisioning HTTP API. |
 | `udr_otel` | [OpenTelemetry](glossary.md) setup: metric instruments and the span exporter. |
 | `udr` | The top-level release application. |
 
 ## 3. The data-access seam
 
 > [!IMPORTANT]
-> The HSS logic in `udr_hss`, the SBI handlers in `udr_sbi`, and the provisioning handlers in `udr_provision` reach subscriber data **only** through `udr_data`, and `udr_data` reaches storage **only** through `udr_db`. No signaling code calls a backend directly.
+> The HSS logic in `udr_hss`, the SBI handlers in `udr_sbi`, and the provisioning handlers in `udr_api` reach subscriber data **only** through `udr_data`, and `udr_data` reaches storage **only** through `udr_db`. No signaling code calls a backend directly.
 
 A consequence of this seam is that the storage backend is swappable: selecting [MongoDB](glossary.md) in place of the default [ETS](glossary.md) backend, or adding a further backend, changes configuration only and touches no signaling code. Backend selection is covered in the [data-store configuration reference](configuration/data-store.md).
 
@@ -58,7 +58,7 @@ The system has three independent listeners, one per entry path. Each path ends a
 | --- | --- | --- | --- |
 | S6a | [MME](glossary.md) | S6a Diameter | MME → `udr_diameter` → `udr_hss` → `udr_data` → `udr_db` |
 | SBI | 5G consumer (the [AMF](glossary.md) Access and Mobility Management Function and other network functions) | SBI (Nudr-DR) | consumer → `udr_sbi` → `udr_data` → `udr_db` |
-| Provisioning | admin | Provisioning API | admin → `udr_provision` → `udr_data` → `udr_db` |
+| Provisioning | admin | Provisioning API | admin → `udr_api` → `udr_data` → `udr_db` |
 
 On the S6a path, `udr_hss` runs each procedure inside the per-IMSI cluster lock provided by `udr_cluster`, so that concurrent signaling for one subscriber serializes. On an [AIR](glossary.md), `udr_hss` reads the subscriber's authentication subscription through `udr_data`, advances the stored [SQN](glossary.md), and calls `udr_crypto` to generate the [EPS authentication vectors](glossary.md) (AV) returned in the [AIA](glossary.md).
 
@@ -73,7 +73,7 @@ flowchart LR
     subgraph HSS_NODE["HSS / UDR node (single Erlang/OTP node)"]
         DIA["udr_diameter<br/>S6a listener<br/>127.0.0.1:3868"]
         SBI["udr_sbi<br/>SBI listener<br/>127.0.0.1:8080"]
-        PROV["udr_provision<br/>Provisioning listener<br/>127.0.0.1:8090"]
+        PROV["udr_api<br/>Provisioning listener<br/>127.0.0.1:8090"]
         HSSAPP["udr_hss"]
         DATA["udr_data"]
         DB["udr_db"]

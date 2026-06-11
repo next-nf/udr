@@ -39,7 +39,7 @@ The container image is built with **podman/buildah** (not docker). Its assets li
 rebar3 umbrella; each app under `apps/` is one well-scoped responsibility. The defining rule is a **strict data-access layering** — signalling code never touches storage directly:
 
 ```
-udr_hss / udr_diameter / udr_sbi / udr_provision   (signalling + interfaces)
+udr_hss / udr_diameter / udr_sbi / udr_api   (signalling + interfaces)
         │  (only through)
         ▼
 udr_data        Nudr-shaped, domain-aware seam (auth subscription, am-data, registration, SQN)
@@ -65,7 +65,7 @@ Key mechanisms that span multiple files:
 
 - **S6a Diameter** `:3868` — AIR (auth vectors, MILENAGE), ULR (register serving MME), PUR (purge), HSS-initiated CLR. Wire codec/transport in `udr_diameter`; command logic in `udr_hss`.
 - **Nudr-DR SBI** `:8080` — `/nudr-dr/v1/subscription-data/{ueId}/...` (auth subscription, am-data, amf-3gpp-access context). Cowboy handlers in `udr_sbi`.
-- **Provisioning API** `:8090` — `PUT/GET/DELETE /provision/v1/subscribers/{imsi}`. Cowboy handlers in `udr_provision`.
+- **Provisioning API** `:8090` — `PUT/GET/DELETE /provision/v1/subscribers/{imsi}`. Cowboy handlers in `udr_api`.
 
 Runtime config: `config/sys.config` (local), `container/container.sys.config` (container, binds 0.0.0.0). MILENAGE auth crypto (f1–f5/f1*/f5*/OPc per TS 35.205/206) lives in `udr_crypto` behind a pluggable algorithm behaviour.
 

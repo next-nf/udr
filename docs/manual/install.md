@@ -86,19 +86,19 @@ The node has booted when the Erlang shell prompt appears and the three listeners
 | --- | --- | --- | --- | --- |
 | [S6a](glossary.md) Diameter | `udr_diameter` | `127.0.0.1` | `3868` | TCP |
 | [SBI](glossary.md) (Nudr-DR) | `udr_sbi` | `127.0.0.1` | `8080` | HTTP |
-| Provisioning | `udr_provision` | `127.0.0.1` | `8090` | HTTP |
+| Provisioning | `udr_api` | `127.0.0.1` | `8090` | HTTP |
 
 From the running Erlang shell, confirm that the umbrella applications are running:
 
 ```erlang
 [ A || {A,_,_} <- application:which_applications(),
-       lists:member(A, [udr, udr_hss, udr_diameter, udr_sbi, udr_provision]) ].
+       lists:member(A, [udr, udr_hss, udr_diameter, udr_sbi, udr_api]) ].
 ```
 
 The expected result lists all five applications (order may vary):
 
 ```erlang
-[udr_provision,udr_sbi,udr_diameter,udr_hss,udr]
+[udr_api,udr_sbi,udr_diameter,udr_hss,udr]
 ```
 
 To confirm the SBI listener is accepting TCP connections, from another terminal:

@@ -14,7 +14,7 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_subscriber_h).
+-module(udr_api_subscriber_h).
 -moduledoc "Cowboy handler for /provision/v1/subscribers/:imsi (PUT/GET/DELETE).".
 -export([init/2]).
 
@@ -29,10 +29,10 @@ init(Req0, State) ->
 handle(<<"PUT">>, Imsi, Req0) ->
     {ok, Raw, Req1} = cowboy_req:read_body(Req0),
     try
-        case udr_provision_json:decode(Raw) of
+        case udr_api_json:decode(Raw) of
             #{<<"auth">> := AuthJson} = Body ->
-                Auth    = udr_provision_subscriber:auth_from_json(AuthJson),
-                Profile = udr_provision_subscriber:profile_from_json(maps:get(<<"profile">>, Body, #{})),
+                Auth    = udr_api_subscriber:auth_from_json(AuthJson),
+                Profile = udr_api_subscriber:profile_from_json(maps:get(<<"profile">>, Body, #{})),
                 case store(Imsi, Auth, Profile) of
                     ok ->
                         reply_json(201, #{<<"imsi">> => Imsi, <<"status">> => <<"provisioned">>}, Req1);
@@ -55,7 +55,7 @@ handle(<<"GET">>, Imsi, Req0) ->
                           {ok, P} -> P;
                           {error, not_found} -> #{}
                       end,
-            reply_json(200, udr_provision_subscriber:to_view(Auth, Profile), Req0)
+            reply_json(200, udr_api_subscriber:to_view(Auth, Profile), Req0)
     end;
 handle(<<"DELETE">>, Imsi, Req0) ->
     ok = udr_data:delete_authentication_subscription(Imsi),
@@ -76,7 +76,7 @@ store(Imsi, Auth, Profile) ->
 -spec reply_json(cowboy:http_status(), map(), cowboy_req:req()) -> cowboy_req:req().
 reply_json(Status, Map, Req) ->
     cowboy_req:reply(Status, #{<<"content-type">> => <<"application/json">>},
-                     udr_provision_json:encode(Map), Req).
+                     udr_api_json:encode(Map), Req).
 
 -spec reply_error(cowboy:http_status(), binary(), cowboy_req:req()) -> cowboy_req:req().
 reply_error(Status, Msg, Req) ->

@@ -1,10 +1,10 @@
-# Troubleshooting: Provisioning API (`udr_provision`)
+# Troubleshooting: Provisioning API (`udr_api`)
 
 **Applies to:** udr 0.1.0 · **Revised:** 2026-06-08
 
 ## Scope
 
-This guide covers symptoms an operator observes on the admin provisioning HTTP API served by the `udr_provision` application: a `400` from request-body validation, a `404` on a read or delete of an unknown subscriber, a `500` when storage fails, and the inability to reach the listener at all. The status codes and error bodies referenced here are defined in the [provisioning interface reference §7](../interfaces/provisioning.md#7-status--result-codes); the listener configuration is defined in the [provisioning configuration reference](../configuration/provisioning.md).
+This guide covers symptoms an operator observes on the admin provisioning HTTP API served by the `udr_api` application: a `400` from request-body validation, a `404` on a read or delete of an unknown subscriber, a `500` when storage fails, and the inability to reach the listener at all. The status codes and error bodies referenced here are defined in the [provisioning interface reference §7](../interfaces/provisioning.md#7-status--result-codes); the listener configuration is defined in the [provisioning configuration reference](../configuration/provisioning.md).
 
 > [!NOTE]
 > Provisioning error bodies are `application/json` of the form `{"error":"<message>"}` (not `application/problem+json`). The `<message>` strings quoted below are the exact values the handler returns.
@@ -19,7 +19,7 @@ A `PUT /provision/v1/subscribers/{imsi}` returns `400 Bad Request` with a JSON b
 
 ### Affected component
 
-`udr_provision` — `udr_provision_subscriber_h` (the `PUT` clause) and `udr_provision_subscriber:auth_from_json/1`.
+`udr_api` — `udr_api_subscriber_h` (the `PUT` clause) and `udr_api_subscriber:auth_from_json/1`.
 
 ### Likely causes
 
@@ -77,7 +77,7 @@ A `GET /provision/v1/subscribers/{imsi}` returns `404 Not Found` with body `{"er
 
 ### Affected component
 
-`udr_provision` — `udr_provision_subscriber_h` (the `GET` clause) over the data store.
+`udr_api` — `udr_api_subscriber_h` (the `GET` clause) over the data store.
 
 ### Likely causes
 
@@ -117,7 +117,7 @@ A `GET /provision/v1/subscribers/{imsi}` returns `404 Not Found` with body `{"er
 - For cause 3: where data is to survive a restart, the MongoDB backend `shall` be selected per the [data-store configuration reference §5.1](../configuration/data-store.md#51-backend). See [TS-DB-003](data-store.md#ts-db-003-provisioned-data-disappears-after-a-node-restart).
 
 > [!NOTE]
-> A `DELETE` on an unknown IMSI does **not** return `404`; it returns `204` and is idempotent (confirmed in `udr_provision_subscriber_h.erl`). The `404` "subscriber not found" arises only on `GET`.
+> A `DELETE` on an unknown IMSI does **not** return `404`; it returns `204` and is idempotent (confirmed in `udr_api_subscriber_h.erl`). The `404` "subscriber not found" arises only on `GET`.
 
 ### Prevention
 
@@ -138,7 +138,7 @@ A `PUT /provision/v1/subscribers/{imsi}` whose body validated returns `500 Inter
 
 ### Affected component
 
-`udr_provision` — `udr_provision_subscriber_h` (`store/3`) over the data store.
+`udr_api` — `udr_api_subscriber_h` (`store/3`) over the data store.
 
 ### Likely causes
 
@@ -191,7 +191,7 @@ A request to the provisioning API fails at the transport layer — `curl` report
 
 ### Affected component
 
-`udr_provision` — the provisioning HTTP listener (`udr_provision_listener`) and its bind address.
+`udr_api` — the provisioning HTTP listener (`udr_api_listener`) and its bind address.
 
 ### Likely causes
 

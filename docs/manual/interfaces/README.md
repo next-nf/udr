@@ -15,7 +15,7 @@ This index is informative. The references it links to carry the normative interf
 | --- | --- | --- | --- |
 | [S6a Diameter](s6a.md) | `udr_diameter` | The [S6a](../glossary.md) [Diameter](../glossary.md) interface between the [MME](../glossary.md) and the [HSS](../glossary.md): AIR/AIA, ULR/ULA, PUR/PUA, and HSS-initiated CLR/CLA. | TCP `127.0.0.1:3868` |
 | [SBI (Nudr-DR)](sbi.md) | `udr_sbi` | The [Nudr](../glossary.md)-flavored 5G [SBI](../glossary.md) data-repository: read authentication-subscription and am-data, and read/write the amf-3gpp-access registration context. | HTTP `127.0.0.1:8080` |
-| [Provisioning API](provisioning.md) | `udr_provision` | The admin provisioning HTTP API: create, read, and delete a subscriber by [IMSI](../glossary.md). | HTTP `127.0.0.1:8090` |
+| [Provisioning API](provisioning.md) | `udr_api` | The admin provisioning HTTP API: create, read, and delete a subscriber by [IMSI](../glossary.md). | HTTP `127.0.0.1:8090` |
 
 ## 2. Relationship to the rest of the manual
 
