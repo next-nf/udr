@@ -18,6 +18,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
 
 -define(DICT, diameter_3gpp_s6a).
 -define(OPTS, #{string_decode => false, decode_format => map}).
@@ -70,10 +71,10 @@ air_decode_default_numvectors(_Config) ->
 
 ulr_decode(_Config) ->
     Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"mme-a">>,
-            'Origin-Realm' => <<"epc">>, 'RAT-Type' => 1004,
+            'Origin-Realm' => <<"epc">>, 'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN',
             'Visited-PLMN-Id' => <<0,16#f1,16#10>>},
     ?assertEqual(#{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
-                   rat_type => 1004, visited_plmn => <<0,16#f1,16#10>>},
+                   rat_type => ?'S6A_RAT-TYPE_EUTRAN', visited_plmn => <<0,16#f1,16#10>>},
                  udr_diameter_codec:decode_ulr(Req)),
     ok.
 
@@ -124,7 +125,8 @@ clr_request(_Config) ->
     ?assertEqual(<<"i">>, maps:get('User-Name', Avps)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
     ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
-    ?assertEqual(2, maps:get('Cancellation-Type', Avps)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_SUBSCRIPTION_WITHDRAWAL',
+                 maps:get('Cancellation-Type', Avps)),
     ok.
 
 %% ---------------------------------------------------------------------------
@@ -164,7 +166,8 @@ clr_roundtrip(_Config) ->
     #diameter_packet{msg = ['CLR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
     ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Decoded)),
-    ?assertEqual(2, maps:get('Cancellation-Type', Decoded)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_SUBSCRIPTION_WITHDRAWAL',
+                 maps:get('Cancellation-Type', Decoded)),
     ok.
 
 aia_answer_roundtrip(_Config) ->

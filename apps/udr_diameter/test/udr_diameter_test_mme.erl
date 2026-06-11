@@ -18,6 +18,7 @@
 -moduledoc false.
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
 
 -export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, received_clr/2]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
@@ -118,7 +119,7 @@ bad_air(Imsi) ->
 ulr(Imsi, MmeHost) ->
     Avps = (common(MmeHost))#{
         'User-Name' => Imsi,
-        'RAT-Type' => 1004,        %% EUTRAN
+        'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN',
         'ULR-Flags' => 0,
         'Visited-PLMN-Id' => ?VISITED_PLMN},
     diameter:call(?SVC, s6a, ['ULR' | Avps], []).
