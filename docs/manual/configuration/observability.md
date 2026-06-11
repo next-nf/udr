@@ -6,7 +6,7 @@
 
 This reference covers the [OpenTelemetry](../glossary.md) configuration the node reads: the `opentelemetry`, `opentelemetry_exporter`, and `opentelemetry_experimental` application keys in `config/sys.config`, which configure span processing, the trace exporter, the resource, the [OTLP](../glossary.md) transport, and the metric readers.
 
-The `udr_otel` application creates the S6a metric instruments (`s6a.requests`, `s6a.handler.duration`) at start and records to them; it reads no application environment of its own and has no operator-tunable key. Its instruments report under whatever reader the `opentelemetry_experimental` key configures.
+The `udr_otel` application creates the S6a metric instruments (`s6a.requests`, `s6a.handler.duration`) at start and records to them; it reads no application environment of its own and has no operator-tunable key. Its instruments report under whatever reader the `opentelemetry_experimental` key configures. The instruments themselves — their types, units, attributes, and the Grafana dashboard — are catalogued in the [metrics reference](../../../METRICS.md); this reference covers only the configuration that collects and exports them.
 
 These keys belong to the OpenTelemetry Erlang libraries, not to this project. Only the keys present in the shipped `config/sys.config` are documented here; each library exposes further keys that are out of scope.
 
