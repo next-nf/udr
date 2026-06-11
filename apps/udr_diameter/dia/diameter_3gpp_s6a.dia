@@ -34,9 +34,9 @@
    Authentication-Info                        1413  Grouped      MV
    E-UTRAN-Vector                             1414  Grouped      MV
    Item-Number                                1419  Unsigned32   MV
-   Cancellation-Type                          1420  Unsigned32   MV
+   Cancellation-Type                          1420  Enumerated   MV
    Context-Identifier                         1423  Unsigned32   MV
-   Subscriber-Status                          1424  Unsigned32   MV
+   Subscriber-Status                          1424  Enumerated   MV
    All-APN-Configurations-Included-Indicator  1428  Unsigned32   MV
    APN-Configuration-Profile                  1429  Grouped      MV
    APN-Configuration                          1430  Grouped      MV
@@ -47,8 +47,8 @@
    AUTN                                       1449  OctetString  MV
    KASME                                      1450  OctetString  MV
    PUR-Flags                                  1635  Unsigned32   MV
-   RAT-Type                                   1032  Unsigned32   MV
-   PDN-Type                                   1456  Unsigned32   MV
+   RAT-Type                                   1032  Enumerated   MV
+   PDN-Type                                   1456  Enumerated   MV
    Service-Selection                          493   UTF8String   M
    Max-Requested-Bandwidth-UL                 516   Unsigned32   MV
    Max-Requested-Bandwidth-DL                 515   Unsigned32   MV
@@ -56,6 +56,48 @@
    IMEI                                       1402  UTF8String   MV
    Software-Version                           1403  UTF8String   MV
    UE-SRVCC-Capability                        1615  Unsigned32   V
+
+; Enumerated AVPs. diameter_make emits a NAME -> integer macro per value into the
+; generated .hrl (e.g. ?'S6A_RAT-TYPE_EUTRAN'), so application code references the
+; 3GPP value by name instead of a magic integer. The runtime/wire representation
+; is unchanged: Enumerated is Integer32, decoded to the integer (values outside
+; the set below still decode -- the enum is a source of named constants, not a
+; validating whitelist).
+
+; Cancellation-Type, TS 29.272 clause 7.3.24.
+@enum Cancellation-Type
+   MME_UPDATE_PROCEDURE      0
+   SGSN_UPDATE_PROCEDURE     1
+   SUBSCRIPTION_WITHDRAWAL   2
+   UPDATE_PROCEDURE_IWF      3
+   INITIAL_ATTACH_PROCEDURE  4
+
+; Subscriber-Status, TS 29.272 clause 7.3.29.
+@enum Subscriber-Status
+   SERVICE_GRANTED              0
+   OPERATOR_DETERMINED_BARRING  1
+
+; PDN-Type, TS 29.272 clause 7.3.62.
+@enum PDN-Type
+   IPv4          0
+   IPv6          1
+   IPv4v6        2
+   IPv4_OR_IPv6  3
+
+; RAT-Type, TS 29.212 clause 5.3.31 (full standard set).
+@enum RAT-Type
+   WLAN             0
+   VIRTUAL          1
+   UTRAN            1000
+   GERAN            1001
+   GAN              1002
+   HSPA_EVOLUTION   1003
+   EUTRAN           1004
+   EUTRAN_NB_IoT    1005
+   CDMA2000_1X      2000
+   HRPD             2001
+   UMB              2002
+   EHRPD            2003
 
 @grouped
    Requested-EUTRAN-Authentication-Info ::= < AVP Header: 1408 10415 >

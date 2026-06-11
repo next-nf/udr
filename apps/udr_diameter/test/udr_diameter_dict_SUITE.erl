@@ -20,6 +20,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
 
 -export([all/0]).
 -export([aia_roundtrip/1, open5gs_ulr_decodes_clean/1]).
@@ -103,7 +104,7 @@ open5gs_ulr_decodes_clean(_Config) ->
                               #diameter_packet{header = Hdr, bin = Bin}),
     ?assertEqual([], Errors),
     ['ULR' | Map] = Msg,
-    ?assertEqual(1004, maps:get('RAT-Type', Map)),
+    ?assertEqual(?'S6A_RAT-TYPE_EUTRAN', maps:get('RAT-Type', Map)),
     [TermInfo] = maps:get('Terminal-Information', Map),
     ?assertEqual([<<"35349006987331">>], maps:get('IMEI', TermInfo)),
     ?assertMatch([_], maps:get('UE-SRVCC-Capability', Map)),
