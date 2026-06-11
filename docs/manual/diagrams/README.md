@@ -46,7 +46,7 @@ flowchart LR
     subgraph NODE["HSS / UDR node<br/>(single Erlang/OTP node)"]
         DIA["udr_diameter<br/>S6a listener<br/>127.0.0.1:3868"]
         SBI["udr_sbi<br/>SBI listener<br/>127.0.0.1:8080"]
-        PROV["udr_provision<br/>Provisioning listener<br/>127.0.0.1:8090"]
+        PROV["udr_api<br/>Provisioning listener<br/>127.0.0.1:8090"]
         HSSAPP["udr_hss"]
         DATA["udr_data"]
         DB["udr_db"]
@@ -80,12 +80,12 @@ flowchart TB
     subgraph CLUSTER["udr cluster (shared cookie + syn lock space)"]
         direction LR
         subgraph N1["Node 1 (udr@host1)"]
-            L1["udr_diameter / udr_sbi / udr_provision"]
+            L1["udr_diameter / udr_sbi / udr_api"]
             D1["udr_data → udr_db"]
             L1 --> D1
         end
         subgraph N2["Node 2 (udr@host2)"]
-            L2["udr_diameter / udr_sbi / udr_provision"]
+            L2["udr_diameter / udr_sbi / udr_api"]
             D2["udr_data → udr_db"]
             L2 --> D2
         end

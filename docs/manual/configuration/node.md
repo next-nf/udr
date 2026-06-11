@@ -6,7 +6,7 @@
 
 This reference covers the configuration of the [BEAM](../glossary.md) node and the [relx](../glossary.md) release, as distinct from any single [OTP application](../glossary.md). It documents the node-level arguments in `config/vm.args` (node name, distribution cookie, and the `+K` and `+A` emulator flags) and the release `mode` selected in `rebar.config`.
 
-Application environment keys (the `udr_diameter`, `udr_sbi`, `udr_provision`, `udr_db`, `opentelemetry` blocks, and so on) are out of scope here; each is covered in its own reference under this directory. Erlang distribution and the shared cookie are summarized here because clustering depends on them; their effect on per-[IMSI](../glossary.md) locking is covered in the [cluster reference](cluster.md).
+Application environment keys (the `udr_diameter`, `udr_sbi`, `udr_api`, `udr_db`, `opentelemetry` blocks, and so on) are out of scope here; each is covered in its own reference under this directory. Erlang distribution and the shared cookie are summarized here because clustering depends on them; their effect on per-[IMSI](../glossary.md) locking is covered in the [cluster reference](cluster.md).
 
 ## 2. Terms
 

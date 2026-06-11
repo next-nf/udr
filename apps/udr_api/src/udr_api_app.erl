@@ -14,27 +14,27 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_app).
+-module(udr_api_app).
 -moduledoc "Application callback: starts the provisioning Cowboy listener.".
 -behaviour(application).
 -export([start/2, stop/1]).
 
 -spec start(application:start_type(), term()) -> {ok, pid()} | {error, term()}.
 start(_StartType, _StartArgs) ->
-    Port = application:get_env(udr_provision, port, 8090),
-    Ip   = application:get_env(udr_provision, ip, {127,0,0,1}),
+    Port = application:get_env(udr_api, port, 8090),
+    Ip   = application:get_env(udr_api, ip, {127,0,0,1}),
     Dispatch = cowboy_router:compile([
         {'_', [
-            {"/provision/v1/subscribers/:imsi", udr_provision_subscriber_h, []}
+            {"/provision/v1/subscribers/:imsi", udr_api_subscriber_h, []}
         ]}
     ]),
-    {ok, _} = cowboy:start_clear(udr_provision_listener,
+    {ok, _} = cowboy:start_clear(udr_api_listener,
                                  [{port, Port}, {ip, Ip}],
                                  #{env => #{dispatch => Dispatch},
                                    stream_handlers => [opentelemetry_cowboy_h, cowboy_stream_h]}),
-    udr_provision_sup:start_link().
+    udr_api_sup:start_link().
 
 -spec stop(term()) -> ok.
 stop(_State) ->
-    _ = cowboy:stop_listener(udr_provision_listener),
+    _ = cowboy:stop_listener(udr_api_listener),
     ok.

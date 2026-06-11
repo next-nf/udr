@@ -14,11 +14,11 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
-{application, udr_provision, [
+{application, udr_api, [
     {description, "Admin provisioning HTTP API for the HSS/UDR"},
     {vsn, "0.1.0"},
-    {registered, [udr_provision_sup]},
-    {mod, {udr_provision_app, []}},
+    {registered, [udr_api_sup]},
+    {mod, {udr_api_app, []}},
     {applications, [kernel, stdlib, cowboy, udr_crypto, udr_data]},
     {env, [{port, 8090}, {ip, {127,0,0,1}}]},
     {modules, []},

@@ -14,7 +14,7 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_json).
+-module(udr_api_json).
 -moduledoc "Thin native-`json` wrapper (binary-keyed maps).".
 -export([decode/1, encode/1]).
 

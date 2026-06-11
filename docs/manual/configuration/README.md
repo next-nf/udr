@@ -25,7 +25,7 @@ Two files hold all shipped configuration:
 | [Node and release](node.md) | the release / BEAM node | `config/vm.args` (`-sname`/`-name`, `-setcookie`, `+K`, `+A`) and the relx `dev`/`prod` release modes. |
 | [S6a Diameter](diameter.md) | `udr_diameter` | `origin_host`, `origin_realm`, `listen`. |
 | [SBI (Nudr-DR)](sbi.md) | `udr_sbi` | `port`, `ip`. |
-| [Provisioning API](provisioning.md) | `udr_provision` | `port`, `ip`. |
+| [Provisioning API](provisioning.md) | `udr_api` | `port`, `ip`. |
 | [Data store](data-store.md) | `udr_db`, `udr_db_mongo` | `backend`, `backend_opts`, and the MongoDB connection options. |
 | [Observability](observability.md) | `opentelemetry`, `opentelemetry_exporter`, `opentelemetry_experimental`, `udr_otel` | Span processor, trace exporter, resource, OTLP transport, metric readers. |
 | [Cluster](cluster.md) | `udr_cluster` | Per-[IMSI](../glossary.md) session locking and its node-distribution prerequisites. |

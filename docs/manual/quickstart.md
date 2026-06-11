@@ -30,13 +30,13 @@ The following `shall` hold before starting:
 
    ```erlang
    [ A || {A,_,_} <- application:which_applications(),
-          lists:member(A, [udr, udr_hss, udr_diameter, udr_sbi, udr_provision]) ].
+          lists:member(A, [udr, udr_hss, udr_diameter, udr_sbi, udr_api]) ].
    ```
 
    The expected result lists all five applications (order may vary):
 
    ```erlang
-   [udr_provision,udr_sbi,udr_diameter,udr_hss,udr]
+   [udr_api,udr_sbi,udr_diameter,udr_hss,udr]
    ```
 
 > [!NOTE]
@@ -44,11 +44,11 @@ The following `shall` hold before starting:
 
 ## 3. Provision one subscriber
 
-The provisioning API is served by `udr_provision` on `127.0.0.1:8090`. A subscriber is created or replaced with a `PUT` to `/provision/v1/subscribers/{imsi}`.
+The provisioning API is served by `udr_api` on `127.0.0.1:8090`. A subscriber is created or replaced with a `PUT` to `/provision/v1/subscribers/{imsi}`.
 
 ### Request contract
 
-The request body is a JSON object. The handler accepts the following fields (confirmed in `apps/udr_provision/src/udr_provision_subscriber_h.erl` and `udr_provision_subscriber.erl`):
+The request body is a JSON object. The handler accepts the following fields (confirmed in `apps/udr_api/src/udr_api_subscriber_h.erl` and `udr_api_subscriber.erl`):
 
 | Field | Location | Required | Type | Meaning |
 | --- | --- | --- | --- | --- |
@@ -95,7 +95,7 @@ The request body is a JSON object. The handler accepts the following fields (con
 
 ## 4. Read the subscriber back
 
-The provisioning API exposes a read at the same path with `GET`. The read view returns authentication metadata only — the [Ki](glossary.md) and [OPc](glossary.md) secrets are not included (confirmed in `udr_provision_subscriber.erl`, `to_view/2`).
+The provisioning API exposes a read at the same path with `GET`. The read view returns authentication metadata only — the [Ki](glossary.md) and [OPc](glossary.md) secrets are not included (confirmed in `udr_api_subscriber.erl`, `to_view/2`).
 
 1. Read IMSI `001010000000001`:
 

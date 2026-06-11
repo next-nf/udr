@@ -4,7 +4,7 @@
 
 ## Scope
 
-This runbook covers provisioning subscribers through the admin provisioning HTTP API served by `udr_provision`: creating or replacing a single subscriber, reading one back, deleting one, and provisioning many in bulk. It is for operators populating the subscriber base. The full request and response contract — the body schema, validation, the read view, and every status code — is defined in the [provisioning interface reference](../interfaces/provisioning.md); this runbook directs the operator through the task and does not repeat the schema.
+This runbook covers provisioning subscribers through the admin provisioning HTTP API served by `udr_api`: creating or replacing a single subscriber, reading one back, deleting one, and provisioning many in bulk. It is for operators populating the subscriber base. The full request and response contract — the body schema, validation, the read view, and every status code — is defined in the [provisioning interface reference](../interfaces/provisioning.md); this runbook directs the operator through the task and does not repeat the schema.
 
 > [!CAUTION]
 > The provisioning API is unauthenticated and the shipped listener binds to `127.0.0.1:8090`. Any caller that can reach the listener can create, read, or delete any subscriber, and credentials cross the wire in clear. The listener `shall` be bound only to a trusted management interface; see the [provisioning configuration reference](../configuration/provisioning.md). Secret-material handling is covered in [`RUN-SECRETS-001`](secrets.md).
@@ -72,7 +72,7 @@ This runbook covers provisioning subscribers through the admin provisioning HTTP
      "http://127.0.0.1:8090/provision/v1/subscribers/${IMSI}"
    ```
 
-4. **Bulk-provision from a list.** The provisioning API exposes no batch endpoint; it routes only the single per-IMSI resource (confirmed in `udr_provision_app.erl`: one route, `/provision/v1/subscribers/:imsi`). Bulk provisioning is therefore a scripted loop of per-IMSI `PUT` requests. Prepare a newline-delimited file `subscribers.tsv` with one subscriber per line, fields `imsi`, `ki`, `opc`, `amf` separated by tabs, then run:
+4. **Bulk-provision from a list.** The provisioning API exposes no batch endpoint; it routes only the single per-IMSI resource (confirmed in `udr_api_app.erl`: one route, `/provision/v1/subscribers/:imsi`). Bulk provisioning is therefore a scripted loop of per-IMSI `PUT` requests. Prepare a newline-delimited file `subscribers.tsv` with one subscriber per line, fields `imsi`, `ki`, `opc`, `amf` separated by tabs, then run:
 
    ```sh
    while IFS=$'\t' read -r imsi ki opc amf; do

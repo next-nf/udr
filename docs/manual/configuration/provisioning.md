@@ -1,23 +1,23 @@
-# Configuration Reference: Provisioning API (`udr_provision`)
+# Configuration Reference: Provisioning API (`udr_api`)
 
 **Applies to:** udr 0.1.0 · **Revised:** 2026-06-08
 
 ## 1. Scope
 
-This reference covers the `udr_provision` application: the admin provisioning HTTP API that creates, reads, and deletes subscribers by [IMSI](../glossary.md). It documents the two configuration keys the application reads — the TCP port (`port`) and the bind address (`ip`).
+This reference covers the `udr_api` application: the admin provisioning HTTP API that creates, reads, and deletes subscribers by [IMSI](../glossary.md). It documents the two configuration keys the application reads — the TCP port (`port`) and the bind address (`ip`).
 
 The provisioning request and response contract (the subscriber payload and its fields) is out of scope here and belongs to the [provisioning interface reference](../interfaces/provisioning.md). That interface is where per-subscriber authentication data — algorithm, Ki, OP/OPc, [AMF (Authentication Management Field)](../glossary.md), and [SQN](../glossary.md) — is supplied; none of it is node configuration.
 
 ## 2. Terms
 
-- **Provisioning listener** — the HTTP listener (`udr_provision_listener`) that serves `/provision/v1/subscribers/:imsi`.
+- **Provisioning listener** — the HTTP listener (`udr_api_listener`) that serves `/provision/v1/subscribers/:imsi`.
 
 ## 3. Where configuration lives
 
-Configuration is in `config/sys.config` under the `udr_provision` key, applied at boot. The shipped block is:
+Configuration is in `config/sys.config` under the `udr_api` key, applied at boot. The shipped block is:
 
 ```erlang
-{udr_provision, [{port, 8090}, {ip, {127,0,0,1}}]}
+{udr_api, [{port, 8090}, {ip, {127,0,0,1}}]}
 ```
 
 ## 4. Parameter reference
@@ -52,7 +52,7 @@ The following requirements follow from the API being unauthenticated:
 ## 6. Example
 
 ```erlang
-{udr_provision, [{port, 8090}, {ip, {192,168,10,4}}]}
+{udr_api, [{port, 8090}, {ip, {192,168,10,4}}]}
 ```
 
 This binds the provisioning API on `192.168.10.4:8090`, a management-network address reachable only from trusted operator hosts.

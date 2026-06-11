@@ -14,7 +14,7 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_SUITE).
+-module(udr_api_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -34,10 +34,10 @@ init_per_suite(Config) ->
     %% Load first so these set_env values are not clobbered by the .app file's
     %% {env, ...} defaults (application:load reads those at load time).
     _ = application:load(udr_db),
-    _ = application:load(udr_provision),
+    _ = application:load(udr_api),
     application:set_env(udr_db, backend, udr_db_ets),
-    application:set_env(udr_provision, port, ?PORT),
-    {ok, Started} = application:ensure_all_started(udr_provision),
+    application:set_env(udr_api, port, ?PORT),
+    {ok, Started} = application:ensure_all_started(udr_api),
     {ok, _} = application:ensure_all_started(inets),
     [{started, Started} | Config].
 
@@ -61,7 +61,7 @@ auth_from_json_opc(_Config) ->
     J = #{<<"ki">> => <<"465b5ce8b199b49faa5f0a2ee238a6bc">>,
           <<"opc">> => <<"cd63cb71954a9f4e48a5994e37a02baf">>,
           <<"algorithm">> => <<"milenage">>, <<"amf">> => <<"b9b9">>, <<"sqn">> => 5},
-    M = udr_provision_subscriber:auth_from_json(J),
+    M = udr_api_subscriber:auth_from_json(J),
     ?assertEqual(binary:decode_hex(<<"465b5ce8b199b49faa5f0a2ee238a6bc">>), maps:get(<<"ki">>, M)),
     ?assertEqual(binary:decode_hex(<<"cd63cb71954a9f4e48a5994e37a02baf">>), maps:get(<<"opc">>, M)),
     ?assertEqual(<<"milenage">>, maps:get(<<"algorithm">>, M)),
@@ -74,7 +74,7 @@ auth_from_json_derives_opc_from_op(_Config) ->
     J = #{<<"ki">> => <<"465b5ce8b199b49faa5f0a2ee238a6bc">>,
           <<"op">> => <<"cdc202d5123e20f62b6d676ac72cb318">>,
           <<"algorithm">> => <<"milenage">>, <<"amf">> => <<"b9b9">>},
-    M = udr_provision_subscriber:auth_from_json(J),
+    M = udr_api_subscriber:auth_from_json(J),
     ?assertEqual(binary:decode_hex(<<"cd63cb71954a9f4e48a5994e37a02baf">>), maps:get(<<"opc">>, M)),
     ?assertEqual(0, maps:get(<<"sqn">>, M)),
     ok.
@@ -88,7 +88,7 @@ listener_up(_Config) ->
 %% --- HTTP PUT round-trip ---
 put_creates_subscriber(_Config) ->
     Imsi = <<"001010000000001">>,
-    Body = udr_provision_json:encode(#{
+    Body = udr_api_json:encode(#{
         <<"auth">> => #{<<"ki">> => <<"465b5ce8b199b49faa5f0a2ee238a6bc">>,
                         <<"op">> => <<"cdc202d5123e20f62b6d676ac72cb318">>,
                         <<"algorithm">> => <<"milenage">>, <<"amf">> => <<"b9b9">>,
@@ -105,7 +105,7 @@ put_creates_subscriber(_Config) ->
     ok.
 
 put_without_op_or_opc_400(_Config) ->
-    Body = udr_provision_json:encode(#{<<"auth">> => #{<<"ki">> => <<"00">>,
+    Body = udr_api_json:encode(#{<<"auth">> => #{<<"ki">> => <<"00">>,
                                                        <<"algorithm">> => <<"milenage">>,
                                                        <<"amf">> => <<"b9b9">>}}),
     {ok, {{_, 400, _}, _, _}} = req(put, "/provision/v1/subscribers/x", Body),
@@ -119,7 +119,7 @@ put_malformed_json_400(_Config) ->
 get_delete_subscriber(_Config) ->
     Imsi = <<"001010000000002">>,
     Path = "/provision/v1/subscribers/" ++ binary_to_list(Imsi),
-    Body = udr_provision_json:encode(#{
+    Body = udr_api_json:encode(#{
         <<"auth">> => #{<<"ki">> => <<"465b5ce8b199b49faa5f0a2ee238a6bc">>,
                         <<"opc">> => <<"cd63cb71954a9f4e48a5994e37a02baf">>,
                         <<"algorithm">> => <<"milenage">>, <<"amf">> => <<"b9b9">>,
@@ -127,7 +127,7 @@ get_delete_subscriber(_Config) ->
         <<"profile">> => #{<<"msisdn">> => <<"49170">>}}),
     {ok, {{_, 201, _}, _, _}} = req(put, Path, Body),
     {ok, {{_, 200, _}, _, GetBody}} = req(get, Path),
-    View = udr_provision_json:decode(GetBody),
+    View = udr_api_json:decode(GetBody),
     #{<<"auth">> := AuthView} = View,
     ?assertEqual(error, maps:find(<<"ki">>, AuthView)),
     ?assertEqual(error, maps:find(<<"opc">>, AuthView)),
