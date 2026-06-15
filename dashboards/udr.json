@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Prometheus-compatible datasource carrying the udr OTEL metrics (see METRICS.md §3).",
+      "description": "Prometheus-compatible datasource carrying the udr OTEL metrics, via an OTLP collector (e.g. Grafana Alloy) or the node's :9464 /metrics exporter. Series names: see METRICS.md §6.",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
@@ -16,11 +16,11 @@
     { "type": "panel", "id": "stat", "name": "Stat", "version": "" }
   ],
   "annotations": { "list": [] },
-  "description": "S6a overview for the udr HSS: request and error rate, handler latency, and success ratio. Driven by the OTEL instruments documented in METRICS.md.",
+  "description": "Signalling overview for the udr HSS: S6a request/error rate and handler latency, HTTP server request rate and latency (SBI + provisioning), and Diameter message/error rate. Driven by the OTEL instruments documented in METRICS.md.",
   "editable": true,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "tags": ["udr", "hss", "s6a"],
+  "tags": ["udr", "hss", "s6a", "http", "diameter"],
   "templating": {
     "list": [
       {
@@ -36,9 +36,9 @@
   },
   "time": { "from": "now-6h", "to": "now" },
   "timezone": "",
-  "title": "udr — HSS S6a overview",
+  "title": "udr — HSS signalling overview",
   "uid": "udr-s6a-overview",
-  "version": 1,
+  "version": 2,
   "panels": [
     {
       "id": 1,
@@ -136,6 +136,98 @@
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(s6a_requests_total{s6a_result=\"success\"}[$__rate_interval])) / clamp_min(sum(rate(s6a_requests_total[$__rate_interval])), 1)",
           "legendFormat": "success ratio"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTTP request rate (by listener port)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (server_port, http_request_method) (rate(http_server_request_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{server_port}} {{http_request_method}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "HTTP request latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 0 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Diameter message rate (by direction)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (message_direction) (rate(diameter_message_count_total[$__rate_interval]))",
+          "legendFormat": "{{message_direction}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Diameter error rate",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (diameter_error_type) (rate(diameter_error_count_total[$__rate_interval]))",
+          "legendFormat": "{{diameter_error_type}}"
         }
       ]
     }

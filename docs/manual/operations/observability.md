@@ -1,6 +1,6 @@
 # Operations Runbook: Configure Observability
 
-**Applies to:** udr 0.1.0 · **Revised:** 2026-06-08
+**Applies to:** udr 0.1.0 · **Revised:** 2026-06-15
 
 ## Scope
 
@@ -62,7 +62,9 @@ This runbook covers pointing the node's [OpenTelemetry](../glossary.md) instrume
 
 - After driving an AIR (Step 3), an `s6a.AIR` span `shall` appear in the collector for the configured `service.name`, carrying attribute `s6a.result` (for example `success` for a provisioned IMSI; `user_unknown` for an unprovisioned one). This is the observable confirmation that traces export end to end.
 
-- The S6a metric instruments `s6a.requests` and `s6a.handler.duration` `shall` be reported through the configured metric reader (see the [observability configuration reference](../configuration/observability.md) §1, §4). Confirm they appear in the collector's metric view after driving traffic.
+- The metric instruments `shall` be reported through the configured metric reader (see the [observability configuration reference](../configuration/observability.md) §1, §4). Confirm the S6a instruments (`s6a.requests`, `s6a.handler.duration`), the HTTP server instruments (`http.server.request.duration`), and the Diameter instruments (`diameter.message.count`) appear in the collector's metric view after driving traffic. The full instrument catalogue, including the BEAM/VM and process instruments, is the [metrics reference](../../../METRICS.md).
+
+- Independently of the OTLP exporter, metrics are always scrapable from the in-process OTEL Prometheus exporter. Run `curl -s http://127.0.0.1:9464/metrics | head`; the response `shall` be a Prometheus text exposition (HTTP `200`) carrying, after traffic, `s6a_requests_total` and `http_server_request_duration_seconds_bucket`.
 
 ### Rollback / on failure
 
@@ -73,6 +75,6 @@ This runbook covers pointing the node's [OpenTelemetry](../glossary.md) instrume
 ### Related
 
 - [Observability configuration reference](../configuration/observability.md) — the OpenTelemetry, exporter, and reader parameters.
-- [Metrics reference](../../../METRICS.md) — the `s6a.requests` and `s6a.handler.duration` instruments and the Grafana dashboard.
+- [Metrics reference](../../../METRICS.md) — the full instrument catalogue (S6a, HTTP server, Diameter, BEAM/VM and process) and the Grafana dashboard.
 - [`RUN-S6A-PEER-001`](s6a-peer.md) — drive an AIR to produce a span.
 - [S6a interface reference](../interfaces/s6a.md) §8 — the `s6a.AIR` span and its `s6a.result` attribute.
