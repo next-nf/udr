@@ -20,8 +20,14 @@
            "integer for numeric CAS. Conflicts are detected via the update match count (n).".
 -behaviour(udr_db_backend).
 
--export([child_spec/1, get/2, put/3, delete/2, find/2, update/4]).
+-export([child_spec/1, get/2, put/3, delete/2, find/2, update/4, flush/0]).
 -export([to_mongo/2, from_mongo/1, mutation_to_update/1, cas_selector/2]).
+
+%% The collections udr_data manages; flush empties each. Keep in sync with the
+%% collection atoms used by udr_data (auth_subscription / subscription_data /
+%% access_registration).
+-define(COLLECTIONS, [<<"auth_subscription">>, <<"subscription_data">>,
+                      <<"access_registration">>]).
 
 -spec child_spec(map()) -> supervisor:child_spec().
 child_spec(Opts) ->
@@ -80,6 +86,14 @@ update(Coll, Key, ExpVsn, Mutation) ->
         Other ->
             {error, Other}
     end.
+
+-doc "Delete all documents from every managed collection. Test/admin use only;\n"
+     "callers gate this through udr_db:flush/0.".
+-spec flush() -> ok.
+flush() ->
+    lists:foreach(fun(Coll) -> _ = mc_worker_api:delete(conn(), Coll, #{}) end,
+                  ?COLLECTIONS),
+    ok.
 
 %% --- pure helpers (unit-tested) ---
 -doc "Erlang doc -> Mongo doc: wrap binary values, set _id to the (wrapped) Key.".
