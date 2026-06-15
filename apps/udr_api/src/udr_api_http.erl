@@ -14,17 +14,17 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
-{application, udr_api, [
-    {description, "Admin provisioning HTTP API for the HSS/UDR"},
-    {vsn, "0.1.0"},
-    {registered, [udr_api_sup]},
-    {mod, {udr_api_app, []}},
-    {applications, [kernel, stdlib, cowboy, udr_crypto, udr_data, udr_cluster,
-                    %% HTTP instrumentation: cowboy_h emits spans, experimental_h
-                    %% provides the opt-in metrics_cb the listener wires in.
-                    opentelemetry_cowboy_h, opentelemetry_cowboy_experimental_h]},
-    {env, [{port, 8090}, {ip, {127,0,0,1}}]},
-    {modules, []},
-    {licenses, ["AGPL-3.0-or-later"]},
-    {links, []}
-]}.
+-module(udr_api_http).
+-moduledoc "Shared Cowboy reply helpers for the udr_api handlers (JSON bodies).".
+-export([reply_json/3, reply_error/3]).
+
+-doc "Reply with a JSON body. Sets content-type to application/json and encodes Map.".
+-spec reply_json(cowboy:http_status(), map(), cowboy_req:req()) -> cowboy_req:req().
+reply_json(Status, Map, Req) ->
+    cowboy_req:reply(Status, #{<<"content-type">> => <<"application/json">>},
+                     udr_api_json:encode(Map), Req).
+
+-doc "Reply with a JSON error envelope of the form {\"error\": Msg}.".
+-spec reply_error(cowboy:http_status(), binary(), cowboy_req:req()) -> cowboy_req:req().
+reply_error(Status, Msg, Req) ->
+    reply_json(Status, #{<<"error">> => Msg}, Req).

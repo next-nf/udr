@@ -17,7 +17,7 @@
 -module(udr_api_subscriber).
 -moduledoc "Pure conversion between the provisioning JSON shape (hex strings) and the\n"
            "udr_data storage maps (binaries). OP->OPc is derived here at provisioning.".
--export([auth_from_json/1, profile_from_json/1, to_view/2]).
+-export([auth_from_json/1, auth_record/5, profile_from_json/1, to_view/2]).
 
 -doc "Convert the JSON `auth` object to the udr_data auth_subscription map.\n"
      "Hex fields -> binaries; derives OPc from OP if `opc` is absent; throws `badarg`\n"
@@ -29,6 +29,13 @@ auth_from_json(#{<<"ki">> := KiHex, <<"amf">> := AmfHex} = J) ->
     Amf  = hex(AmfHex),
     Sqn  = maps:get(<<"sqn">>, J, 0),
     OPc  = opc(J, Algo, Ki),
+    auth_record(Ki, OPc, Algo, Amf, Sqn).
+
+-doc "Assemble the canonical auth_subscription storage map. Single owner of the\n"
+     "{ki,opc,algorithm,amf,sqn} record shape, shared by every provisioning path\n"
+     "(JSON PUT and server-side minting) so the schema can only change in one place.".
+-spec auth_record(binary(), binary(), binary(), binary(), non_neg_integer()) -> map().
+auth_record(Ki, OPc, Algo, Amf, Sqn) ->
     #{<<"ki">> => Ki, <<"opc">> => OPc, <<"algorithm">> => Algo,
       <<"amf">> => Amf, <<"sqn">> => Sqn}.
 

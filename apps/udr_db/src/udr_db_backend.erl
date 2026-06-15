@@ -35,3 +35,4 @@
 -callback find(collection(), selector()) -> {ok, [doc()]} | {error, term()}.
 -callback update(collection(), key(), ExpectedVersion :: non_neg_integer(), mutation()) ->
     {ok, doc()} | {error, version_conflict} | {error, not_found} | {error, term()}.
+-callback flush() -> ok | {error, term()}.
