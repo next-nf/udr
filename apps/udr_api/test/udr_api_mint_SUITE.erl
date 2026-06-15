@@ -20,7 +20,9 @@
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([stores_identity/1, opc_matches_derivation/1, rejects_double_provision/1,
          op_not_configured/1, op_misconfigured/1, minted_creds_authenticate/1,
-         honors_amf_override/1, passes_through_profile/1]).
+         honors_amf_override/1, passes_through_profile/1,
+         preserves_existing_profile/1, rejects_invalid_identity/1,
+         rejects_missing_keys/1, rejects_invalid_amf/1, amf_not_configured/1]).
 
 %% Fixed non-zero test OP (16 bytes).
 -define(OP, binary:decode_hex(<<"000102030405060708090a0b0c0d0e0f">>)).
@@ -28,18 +30,36 @@
 all() ->
     [stores_identity, opc_matches_derivation, rejects_double_provision,
      op_not_configured, op_misconfigured, minted_creds_authenticate,
-     honors_amf_override, passes_through_profile].
+     honors_amf_override, passes_through_profile,
+     preserves_existing_profile, rejects_invalid_identity,
+     rejects_missing_keys, rejects_invalid_amf, amf_not_configured].
 
-%% IMSIs this suite provisions. The udr_db store is a node-wide table shared
-%% across every suite in the run, so we clear these before each case: other
-%% suites (e.g. udr_hss_air_SUITE) seed auth records for 001010000000010/011,
-%% which would otherwise trip this suite's double-provision guard.
-imsis() ->
-    [<<"001010000000010">>, <<"001010000000011">>, <<"001010000000012">>,
-     <<"001010000000013">>, <<"001010000000014">>, <<"001010000000015">>,
-     <<"001010000000016">>, <<"001010000000017">>].
+%% Single source of truth for each case's IMSI. The udr_db ETS store is a
+%% node-wide table shared by every suite in a `rebar3 ct` run, so each case
+%% clears its IMSI both before (init) and after (end) it runs -- self-contained
+%% regardless of run order or what another suite wrote. Reading the IMSI from
+%% here (via ?config(imsi, _)) rather than hardcoding it per case means there is
+%% no list to keep in sync, and a case absent from this map fails loudly with a
+%% function_clause instead of silently skipping cleanup.
+%%
+%% NOTE: per-suite clearing is a workaround for the shared-store test isolation
+%% gap; a central CT-hook/udr_db reset that flushes the store between suites
+%% would remove the need for any of this, and is tracked as a follow-up.
+imsi(stores_identity)           -> <<"001010000000011">>;
+imsi(opc_matches_derivation)    -> <<"001010000000010">>;
+imsi(rejects_double_provision)  -> <<"001010000000012">>;
+imsi(op_not_configured)         -> <<"001010000000013">>;
+imsi(minted_creds_authenticate) -> <<"001010000000014">>;
+imsi(op_misconfigured)          -> <<"001010000000015">>;
+imsi(honors_amf_override)       -> <<"001010000000016">>;
+imsi(passes_through_profile)    -> <<"001010000000017">>;
+imsi(preserves_existing_profile)-> <<"001010000000018">>;
+imsi(rejects_invalid_identity)  -> <<"001010000000019">>;
+imsi(rejects_missing_keys)      -> <<"001010000000020">>;
+imsi(rejects_invalid_amf)       -> <<"001010000000021">>;
+imsi(amf_not_configured)        -> <<"001010000000022">>.
 
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
     application:set_env(udr_api, op, ?OP),
     application:set_env(udr_api, default_amf, binary:decode_hex(<<"b9b9">>)),
@@ -50,19 +70,23 @@ init_per_testcase(_TestCase, Config) ->
     {ok, Started1} = application:ensure_all_started(udr_hss),
     {ok, Started2} = application:ensure_all_started(udr_cluster),
     {ok, Started3} = application:ensure_all_started(udr_crypto),
-    %% Apps are up (udr_db live); drop any records left by an earlier suite.
-    [ begin
-          udr_data:delete_authentication_subscription(I),
-          udr_data:delete_subscription_data(I)
-      end || I <- imsis() ],
-    [{started, Started1 ++ Started2 ++ Started3} | Config].
+    Imsi = imsi(TestCase),
+    clear(Imsi),
+    [{imsi, Imsi}, {started, Started1 ++ Started2 ++ Started3} | Config].
 
 end_per_testcase(_TestCase, Config) ->
+    clear(?config(imsi, Config)),
     [ application:stop(A) || A <- lists:reverse(?config(started, Config)) ],
     ok.
 
-stores_identity(_Config) ->
-    Imsi = <<"001010000000011">>,
+%% Drop both records for an IMSI from the shared store (idempotent).
+clear(Imsi) ->
+    udr_data:delete_authentication_subscription(Imsi),
+    udr_data:delete_subscription_data(Imsi),
+    ok.
+
+stores_identity(Config) ->
+    Imsi = ?config(imsi, Config),
     {ok, Res} = udr_api_mint:provision(#{imsi   => Imsi,
                                          msisdn => <<"49170">>,
                                          iccid  => <<"8988001000000000011">>}),
@@ -73,8 +97,8 @@ stores_identity(_Config) ->
     ?assertEqual(<<"8988001000000000011">>, maps:get(<<"iccid">>, Sub)),
     ok.
 
-rejects_double_provision(_Config) ->
-    Imsi = <<"001010000000012">>,
+rejects_double_provision(Config) ->
+    Imsi = ?config(imsi, Config),
     Req  = #{imsi => Imsi, msisdn => <<"49170">>, iccid => <<"8988001000000000012">>},
     {ok, _}     = udr_api_mint:provision(Req),
     {ok, Auth1} = udr_data:get_authentication_subscription(Imsi),
@@ -84,26 +108,28 @@ rejects_double_provision(_Config) ->
     ?assertEqual(maps:get(<<"ki">>, Auth1), maps:get(<<"ki">>, Auth2)),
     ok.
 
-op_not_configured(_Config) ->
+op_not_configured(Config) ->
+    Imsi = ?config(imsi, Config),
     application:unset_env(udr_api, op),
     ?assertEqual(
        {error, op_not_configured},
-       udr_api_mint:provision(#{imsi   => <<"001010000000013">>,
+       udr_api_mint:provision(#{imsi   => Imsi,
                                 msisdn => <<"49170">>,
                                 iccid  => <<"8988001000000000013">>})),
     ok.
 
-op_misconfigured(_Config) ->
+op_misconfigured(Config) ->
+    Imsi = ?config(imsi, Config),
     application:set_env(udr_api, op, <<1,2,3>>),  %% not 16 bytes
     ?assertEqual(
        {error, op_misconfigured},
-       udr_api_mint:provision(#{imsi   => <<"001010000000015">>,
+       udr_api_mint:provision(#{imsi   => Imsi,
                                 msisdn => <<"49170">>,
                                 iccid  => <<"8988001000000000015">>})),
     ok.
 
-minted_creds_authenticate(_Config) ->
-    Imsi = <<"001010000000014">>,
+minted_creds_authenticate(Config) ->
+    Imsi = ?config(imsi, Config),
     {ok, _} = udr_api_mint:provision(#{imsi   => Imsi,
                                        msisdn => <<"49170">>,
                                        iccid  => <<"8988001000000000014">>}),
@@ -122,8 +148,8 @@ minted_creds_authenticate(_Config) ->
     ?assertEqual(1, maps:get(<<"sqn">>, Auth)),
     ok.
 
-opc_matches_derivation(_Config) ->
-    Imsi = <<"001010000000010">>,
+opc_matches_derivation(Config) ->
+    Imsi = ?config(imsi, Config),
     {ok, _} = udr_api_mint:provision(#{imsi   => Imsi,
                                        msisdn => <<"49170">>,
                                        iccid  => <<"8988001000000000010">>}),
@@ -138,8 +164,8 @@ opc_matches_derivation(_Config) ->
     ?assertEqual(binary:decode_hex(<<"b9b9">>), maps:get(<<"amf">>, Auth)),
     ok.
 
-honors_amf_override(_Config) ->
-    Imsi = <<"001010000000016">>,
+honors_amf_override(Config) ->
+    Imsi = ?config(imsi, Config),
     {ok, _} = udr_api_mint:provision(#{imsi   => Imsi,
                                        msisdn => <<"49170">>,
                                        iccid  => <<"8988001000000000016">>,
@@ -148,8 +174,8 @@ honors_amf_override(_Config) ->
     ?assertEqual(<<1,2>>, maps:get(<<"amf">>, Auth)),
     ok.
 
-passes_through_profile(_Config) ->
-    Imsi = <<"001010000000017">>,
+passes_through_profile(Config) ->
+    Imsi = ?config(imsi, Config),
     {ok, _} = udr_api_mint:provision(#{imsi    => Imsi,
                                        msisdn  => <<"49170">>,
                                        iccid   => <<"8988001000000000017">>,
@@ -158,4 +184,60 @@ passes_through_profile(_Config) ->
     ?assertEqual(#{<<"x">> => 1}, maps:get(<<"apn_config_profile">>, Sub)),
     ?assertEqual(<<"49170">>, maps:get(<<"msisdn">>, Sub)),
     ?assertEqual(<<"8988001000000000017">>, maps:get(<<"iccid">>, Sub)),
+    ok.
+
+%% A profile exists (e.g. seeded via the JSON PUT path) but no auth_subscription.
+%% Minting must preserve the existing operator profile, not clobber it.
+preserves_existing_profile(Config) ->
+    Imsi = ?config(imsi, Config),
+    ok = udr_data:put_subscription_data(
+           Imsi, #{<<"apn_config_profile">> => #{<<"a">> => 1},
+                   <<"msisdn">> => <<"stale">>}),
+    {ok, _} = udr_api_mint:provision(#{imsi   => Imsi,
+                                       msisdn => <<"49170">>,
+                                       iccid  => <<"8988001000000000018">>}),
+    {ok, Sub} = udr_data:get_subscription_data(Imsi),
+    %% Pre-existing field preserved; identity fields (msisdn/iccid) refreshed.
+    ?assertEqual(#{<<"a">> => 1}, maps:get(<<"apn_config_profile">>, Sub)),
+    ?assertEqual(<<"49170">>, maps:get(<<"msisdn">>, Sub)),
+    ?assertEqual(<<"8988001000000000018">>, maps:get(<<"iccid">>, Sub)),
+    ok.
+
+rejects_invalid_identity(_Config) ->
+    %% Empty IMSI must never become a lock/storage key.
+    ?assertEqual({error, invalid_identity},
+                 udr_api_mint:provision(#{imsi   => <<>>,
+                                          msisdn => <<"49170">>,
+                                          iccid  => <<"8988001000000000019">>})),
+    %% Non-numeric ICCID of otherwise-plausible length.
+    ?assertEqual({error, invalid_identity},
+                 udr_api_mint:provision(#{imsi   => <<"001010000000019">>,
+                                          msisdn => <<"49170">>,
+                                          iccid  => <<"8988abc010000000x19">>})),
+    ok.
+
+rejects_missing_keys(_Config) ->
+    %% Missing iccid -> structured error, not a function_clause crash.
+    ?assertEqual({error, invalid_request},
+                 udr_api_mint:provision(#{imsi   => <<"001010000000020">>,
+                                          msisdn => <<"49170">>})),
+    ok.
+
+rejects_invalid_amf(Config) ->
+    Imsi = ?config(imsi, Config),
+    ?assertEqual({error, invalid_amf},
+                 udr_api_mint:provision(#{imsi   => Imsi,
+                                          msisdn => <<"49170">>,
+                                          iccid  => <<"8988001000000000021">>,
+                                          amf    => <<1,2,3>>})),  %% must be 2 bytes
+    ok.
+
+%% No per-call amf and no default_amf configured -> fail closed (no placeholder).
+amf_not_configured(Config) ->
+    Imsi = ?config(imsi, Config),
+    application:unset_env(udr_api, default_amf),
+    ?assertEqual({error, amf_not_configured},
+                 udr_api_mint:provision(#{imsi   => Imsi,
+                                          msisdn => <<"49170">>,
+                                          iccid  => <<"8988001000000000022">>})),
     ok.
