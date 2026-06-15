@@ -78,6 +78,10 @@
    HSPA_EVOLUTION 1003
    EUTRAN         1004
    EUTRAN_NB_IOT  1005
+   CDMA2000_1X    2000
+   HRPD           2001
+   UMB            2002
+   EHRPD          2003
 
 @enum Subscriber-Status
    SERVICE_GRANTED             0
