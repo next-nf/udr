@@ -19,7 +19,10 @@
     {vsn, "0.1.0"},
     {registered, [udr_api_sup]},
     {mod, {udr_api_app, []}},
-    {applications, [kernel, stdlib, cowboy, udr_crypto, udr_data]},
+    {applications, [kernel, stdlib, cowboy, udr_crypto, udr_data,
+                    %% HTTP instrumentation: cowboy_h emits spans, experimental_h
+                    %% provides the opt-in metrics_cb the listener wires in.
+                    opentelemetry_cowboy_h, opentelemetry_cowboy_experimental_h]},
     {env, [{port, 8090}, {ip, {127,0,0,1}}]},
     {modules, []},
     {licenses, ["AGPL-3.0-or-later"]},

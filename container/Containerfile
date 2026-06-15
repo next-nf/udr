@@ -26,8 +26,8 @@ COPY --from=build --chown=udr:udr /src/_build/container/rel/udr ./
 
 USER udr
 
-# S6a diameter, Nudr (SBI) HTTP, provisioning HTTP
-EXPOSE 3868 8080 8090
+# S6a diameter, Nudr (SBI) HTTP, provisioning HTTP, OTEL Prometheus /metrics
+EXPOSE 3868 8080 8090 9464
 
 ENTRYPOINT ["/opt/udr/bin/udr"]
 CMD ["foreground"]

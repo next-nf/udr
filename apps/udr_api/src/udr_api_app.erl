@@ -28,9 +28,16 @@ start(_StartType, _StartArgs) ->
             {"/provision/v1/subscribers/:imsi", udr_api_subscriber_h, []}
         ]}
     ]),
+    %% HTTP server metrics are opt-in: create the instruments once (idempotent --
+    %% safe across both listeners and repeated test starts) and pass metrics_cb so
+    %% opentelemetry_cowboy_h records request/response histograms. Spans are emitted
+    %% by the stream handler regardless; metrics need this wiring.
+    ok = opentelemetry_cowboy_experimental_h:init(),
     {ok, _} = cowboy:start_clear(udr_api_listener,
                                  [{port, Port}, {ip, Ip}],
                                  #{env => #{dispatch => Dispatch},
+                                   otel_opts => #{metrics_cb =>
+                                       fun opentelemetry_cowboy_experimental_h:metrics_cb/5},
                                    stream_handlers => [opentelemetry_cowboy_h, cowboy_stream_h]}),
     udr_api_sup:start_link().
 
