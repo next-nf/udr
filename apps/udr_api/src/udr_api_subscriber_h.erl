@@ -35,27 +35,27 @@ handle(<<"PUT">>, Imsi, Req0) ->
                 Profile = udr_api_subscriber:profile_from_json(maps:get(<<"profile">>, Body, #{})),
                 case store(Imsi, Auth, Profile) of
                     ok ->
-                        reply_json(201, #{<<"imsi">> => Imsi, <<"status">> => <<"provisioned">>}, Req1);
+                        udr_api_http:reply_json(201, #{<<"imsi">> => Imsi, <<"status">> => <<"provisioned">>}, Req1);
                     {error, _} ->
-                        reply_error(500, <<"storage error">>, Req1)
+                        udr_api_http:reply_error(500, <<"storage error">>, Req1)
                 end;
             _ ->
-                reply_error(400, <<"missing 'auth' object">>, Req1)
+                udr_api_http:reply_error(400, <<"missing 'auth' object">>, Req1)
         end
     catch
-        error:badarg -> reply_error(400, <<"auth requires 'opc' or 'op' (and 'ki','amf')">>, Req1);
-        _:_          -> reply_error(400, <<"invalid request body">>, Req1)
+        error:badarg -> udr_api_http:reply_error(400, <<"auth requires 'opc' or 'op' (and 'ki','amf')">>, Req1);
+        _:_          -> udr_api_http:reply_error(400, <<"invalid request body">>, Req1)
     end;
 handle(<<"GET">>, Imsi, Req0) ->
     case udr_data:get_authentication_subscription(Imsi) of
         {error, not_found} ->
-            reply_error(404, <<"subscriber not found">>, Req0);
+            udr_api_http:reply_error(404, <<"subscriber not found">>, Req0);
         {ok, Auth} ->
             Profile = case udr_data:get_subscription_data(Imsi) of
                           {ok, P} -> P;
                           {error, not_found} -> #{}
                       end,
-            reply_json(200, udr_api_subscriber:to_view(Auth, Profile), Req0)
+            udr_api_http:reply_json(200, udr_api_subscriber:to_view(Auth, Profile), Req0)
     end;
 handle(<<"DELETE">>, Imsi, Req0) ->
     ok = udr_data:delete_authentication_subscription(Imsi),
@@ -63,21 +63,13 @@ handle(<<"DELETE">>, Imsi, Req0) ->
     ok = udr_data:delete_3gpp_access_registration(Imsi),
     cowboy_req:reply(204, Req0);
 handle(_Method, _Imsi, Req0) ->
-    reply_json(404, #{<<"error">> => <<"not found">>}, Req0).
+    udr_api_http:reply_json(404, #{<<"error">> => <<"not found">>}, Req0).
 
-%% Persist auth then profile; first error short-circuits.
+%% Persist profile then auth; auth_subscription is the record consumers key on,
+%% so writing it last keeps a partial/failed write retry-safe. First error short-circuits.
 -spec store(binary(), map(), map()) -> ok | {error, term()}.
 store(Imsi, Auth, Profile) ->
-    case udr_data:put_authentication_subscription(Imsi, Auth) of
-        ok             -> udr_data:put_subscription_data(Imsi, Profile);
+    case udr_data:put_subscription_data(Imsi, Profile) of
+        ok             -> udr_data:put_authentication_subscription(Imsi, Auth);
         {error, _} = E -> E
     end.
-
--spec reply_json(cowboy:http_status(), map(), cowboy_req:req()) -> cowboy_req:req().
-reply_json(Status, Map, Req) ->
-    cowboy_req:reply(Status, #{<<"content-type">> => <<"application/json">>},
-                     udr_api_json:encode(Map), Req).
-
--spec reply_error(cowboy:http_status(), binary(), cowboy_req:req()) -> cowboy_req:req().
-reply_error(Status, Msg, Req) ->
-    reply_json(Status, #{<<"error">> => Msg}, Req).
