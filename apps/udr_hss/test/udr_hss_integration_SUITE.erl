@@ -17,6 +17,7 @@
 -module(udr_hss_integration_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("udr_hss_test.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([s6a_core_attach/1]).
 
@@ -41,7 +42,7 @@ s6a_core_attach(_Config) ->
            <<"amf">> => binary:decode_hex(<<"b9b9">>), <<"sqn">> => 0}),
     ok = udr_data:put_subscription_data(Imsi, #{<<"msisdn">> => <<"49170">>,
            <<"apn_config_profile">> => #{<<"context_id">> => 1}}),
-    Plmn = binary:decode_hex(<<"00f110">>),
+    Plmn = ?VISITED_PLMN_001_01,
     {ok, #{vectors := Vs}, []} =
         udr_hss:handle_air(#{imsi => Imsi, visited_plmn => Plmn, num_vectors => 3}),
     ?assertEqual(3, length(Vs)),

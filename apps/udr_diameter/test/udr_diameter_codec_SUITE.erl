@@ -18,6 +18,11 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
+-include_lib("udr_diameter/include/s6a_result_codes.hrl").
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+-include_lib("udr_diameter/include/s6a_flags.hrl").
+-include("s6a_test.hrl").
 
 -define(DICT, diameter_3gpp_s6a).
 -define(OPTS, #{string_decode => false, decode_format => map}).
@@ -54,11 +59,11 @@ all() ->
 
 air_decode(_Config) ->
     Req = #{'User-Name' => <<"001010000000001">>,
-            'Visited-PLMN-Id' => <<0,16#f1,16#10>>,
+            'Visited-PLMN-Id' => ?VISITED_PLMN_001_01,
             'Requested-EUTRAN-Authentication-Info' =>
                 [#{'Number-Of-Requested-Vectors' => [3]}]},
     ?assertEqual(#{imsi => <<"001010000000001">>,
-                   visited_plmn => <<0,16#f1,16#10>>,
+                   visited_plmn => ?VISITED_PLMN_001_01,
                    num_vectors => 3,
                    resync => undefined},
                  udr_diameter_codec:decode_air(Req)),
@@ -86,20 +91,21 @@ air_decode_default_numvectors(_Config) ->
 
 ulr_decode(_Config) ->
     Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"mme-a">>,
-            'Origin-Realm' => <<"epc">>, 'RAT-Type' => 1004,
-            'Visited-PLMN-Id' => <<0,16#f1,16#10>>},
+            'Origin-Realm' => <<"epc">>, 'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN',
+            'Visited-PLMN-Id' => ?VISITED_PLMN_001_01},
     ?assertEqual(#{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
-                   rat_type => 1004, visited_plmn => <<0,16#f1,16#10>>,
+                   rat_type => ?'S6A_RAT-TYPE_EUTRAN', visited_plmn => ?VISITED_PLMN_001_01,
                    ulr_flags => 0, skip_subscriber_data => false, initial_attach => false},
                  udr_diameter_codec:decode_ulr(Req)),
     ok.
 
 ulr_decode_flags(_Config) ->
-    %% Skip-Subscriber-Data (bit 2 = 4) and Initial-Attach (bit 5 = 32) both set = 36.
+    Flags = ?ULR_FLAG_SKIP_SUBSCRIBER_DATA bor ?ULR_FLAG_INITIAL_ATTACH,
     Req = #{'User-Name' => <<"i">>, 'Origin-Host' => <<"m">>, 'Origin-Realm' => <<"r">>,
-            'RAT-Type' => 1004, 'Visited-PLMN-Id' => <<0,0,0>>, 'ULR-Flags' => 36},
+            'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN', 'Visited-PLMN-Id' => <<0,0,0>>,
+            'ULR-Flags' => Flags},
     D = udr_diameter_codec:decode_ulr(Req),
-    ?assertEqual(36, maps:get(ulr_flags, D)),
+    ?assertEqual(Flags, maps:get(ulr_flags, D)),
     ?assertEqual(true, maps:get(skip_subscriber_data, D)),
     ?assertEqual(true, maps:get(initial_attach, D)),
     ok.
@@ -114,7 +120,7 @@ encode_air_answer(_Config) ->
     Vs = [#{rand => <<0:128>>, xres => <<1:64>>, autn => <<2:128>>, kasme => <<3:256>>},
           #{rand => <<4:128>>, xres => <<5:64>>, autn => <<6:128>>, kasme => <<7:256>>}],
     Avps = udr_diameter_codec:encode_air_answer({ok, #{vectors => Vs}}),
-    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Avps)),
     [#{'E-UTRAN-Vector' := EVs}] = maps:get('Authentication-Info', Avps),
     ?assertEqual(2, length(EVs)),
     ?assertEqual(<<0:128>>, maps:get('RAND', hd(EVs))),
@@ -122,21 +128,22 @@ encode_air_answer(_Config) ->
 
 encode_error_user_unknown(_Config) ->
     Avps = udr_diameter_codec:encode_air_answer({error, user_unknown}),
-    ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 5001}],
+    ?assertEqual([#{'Vendor-Id' => ?VENDOR_ID_3GPP,
+                    'Experimental-Result-Code' => ?DIAMETER_ERROR_USER_UNKNOWN}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
     ok.
 
 encode_error_unable(_Config) ->
     Avps = udr_diameter_codec:encode_air_answer({error, session_busy}),
-    ?assertEqual([5012], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_UNABLE_TO_COMPLY'], maps:get('Result-Code', Avps)),
     ok.
 
 encode_ulr_answer(_Config) ->
     Profile = #{<<"ambr">> => #{<<"ul">> => 1000, <<"dl">> => 2000},
                 <<"apn_config_profile">> => #{<<"context_id">> => 1}},
     Avps = udr_diameter_codec:encode_ulr_answer({ok, #{subscription_data => Profile}}),
-    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Avps)),
     [SD] = maps:get('Subscription-Data', Avps),
     [#{'Max-Requested-Bandwidth-UL' := 1000}] = maps:get('AMBR', SD),
     ok.
@@ -144,20 +151,20 @@ encode_ulr_answer(_Config) ->
 encode_ulr_answer_skip(_Config) ->
     %% Skip-Subscriber-Data: handler returns an answer with no subscription_data key.
     Avps = udr_diameter_codec:encode_ulr_answer({ok, #{}}),
-    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Avps)),
     ?assertEqual([1], maps:get('ULA-Flags', Avps)),
     ?assertEqual(error, maps:find('Subscription-Data', Avps)),
     ok.
 
 encode_pua_answer(_Config) ->
     Avps = udr_diameter_codec:encode_pua_answer({ok, #{freeze_m_tmsi => false}}),
-    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Avps)),
     ?assertEqual([0], maps:get('PUA-Flags', Avps)),
     ok.
 
 encode_pua_answer_freeze(_Config) ->
     Avps = udr_diameter_codec:encode_pua_answer({ok, #{freeze_m_tmsi => true}}),
-    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Avps)),
     ?assertEqual([1], maps:get('PUA-Flags', Avps)),   %% bit 0 = Freeze M-TMSI
     ok.
 
@@ -168,16 +175,16 @@ clr_request(_Config) ->
     ?assertEqual(<<"i">>, maps:get('User-Name', Def)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Def)),
     ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Def)),
-    ?assertEqual(0, maps:get('Cancellation-Type', Def)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_MME_UPDATE_PROCEDURE', maps:get('Cancellation-Type', Def)),
     %% Explicit initial attach -> 4; subscription withdrawal -> 2.
     Ia = udr_diameter_codec:clr_request(#{imsi => <<"i">>, mme_host => <<"m">>,
                                           mme_realm => <<"r">>,
                                           cancellation_type => initial_attach_procedure}),
-    ?assertEqual(4, maps:get('Cancellation-Type', Ia)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_INITIAL_ATTACH_PROCEDURE', maps:get('Cancellation-Type', Ia)),
     Sw = udr_diameter_codec:clr_request(#{imsi => <<"i">>, mme_host => <<"m">>,
                                           mme_realm => <<"r">>,
                                           cancellation_type => subscription_withdrawal}),
-    ?assertEqual(2, maps:get('Cancellation-Type', Sw)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_SUBSCRIPTION_WITHDRAWAL', maps:get('Cancellation-Type', Sw)),
     ok.
 
 %% ---------------------------------------------------------------------------
@@ -217,7 +224,7 @@ clr_roundtrip(_Config) ->
     #diameter_packet{msg = ['CLR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
     ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Decoded)),
-    ?assertEqual(0, maps:get('Cancellation-Type', Decoded)),
+    ?assertEqual(?'S6A_CANCELLATION-TYPE_MME_UPDATE_PROCEDURE', maps:get('Cancellation-Type', Decoded)),
     ok.
 
 aia_answer_roundtrip(_Config) ->
@@ -247,8 +254,8 @@ nor_roundtrip(_Config) ->
     ok.
 
 noa_roundtrip(_Config) ->
-    Decoded = roundtrip('NOA', #{'Result-Code' => [2001]}),
-    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    Decoded = roundtrip('NOA', #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS']}),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Decoded)),
     ok.
 
 nor_decode(_Config) ->
@@ -270,19 +277,21 @@ nor_decode_no_ti(_Config) ->
 
 encode_noa_answer(_Config) ->
     Avps = udr_diameter_codec:encode_noa_answer({ok, #{}}),
-    ?assertEqual([2001], maps:get('Result-Code', Avps)),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Avps)),
     ok.
 
 encode_noa_unknown_serving_node(_Config) ->
     Avps = udr_diameter_codec:encode_noa_answer({error, unknown_serving_node}),
-    ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 5423}],
+    ?assertEqual([#{'Vendor-Id' => ?VENDOR_ID_3GPP,
+                    'Experimental-Result-Code' => ?DIAMETER_ERROR_UNKNOWN_SERVING_NODE}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
     ok.
 
 encode_air_answer_auth_data_unavailable(_Config) ->
     Avps = udr_diameter_codec:encode_air_answer({error, authentication_data_unavailable}),
-    ?assertEqual([#{'Vendor-Id' => 10415, 'Experimental-Result-Code' => 4181}],
+    ?assertEqual([#{'Vendor-Id' => ?VENDOR_ID_3GPP,
+                    'Experimental-Result-Code' => ?DIAMETER_ERROR_AUTHENTICATION_DATA_UNAVAILABLE}],
                  maps:get('Experimental-Result', Avps)),
     ?assertEqual(error, maps:find('Result-Code', Avps)),
     ok.
@@ -290,11 +299,11 @@ encode_air_answer_auth_data_unavailable(_Config) ->
 dsr_request(_Config) ->
     Avps = udr_diameter_codec:dsr_request(
              #{imsi => <<"i">>, mme_host => <<"mme-a">>, mme_realm => <<"epc">>,
-               dsr_flags => 1}),
+               dsr_flags => ?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL}),
     ?assertEqual(<<"i">>, maps:get('User-Name', Avps)),
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
     ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
-    ?assertEqual(1, maps:get('DSR-Flags', Avps)),
+    ?assertEqual(?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL, maps:get('DSR-Flags', Avps)),
     ok.
 
 idr_request(_Config) ->
@@ -305,7 +314,7 @@ idr_request(_Config) ->
     ?assertEqual(<<"mme-a">>, maps:get('Destination-Host', Avps)),
     ?assertEqual(<<"epc">>, maps:get('Destination-Realm', Avps)),
     [SD] = maps:get('Subscription-Data', Avps),
-    ?assertEqual([0], maps:get('Subscriber-Status', SD)),
+    ?assertEqual([?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED'], maps:get('Subscriber-Status', SD)),
     ok.
 
 idr_roundtrip(_Config) ->
@@ -313,37 +322,38 @@ idr_roundtrip(_Config) ->
                'Origin-Host' => <<"hss">>, 'Origin-Realm' => <<"r">>},
     Idr = Common#{'Destination-Host' => <<"mme-a">>, 'Destination-Realm' => <<"epc">>,
                   'User-Name' => <<"001010000000001">>,
-                  'Subscription-Data' => [#{'Subscriber-Status' => [0]}]},
+                  'Subscription-Data' => [#{'Subscriber-Status' => [?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED']}]},
     Hdr = #diameter_header{version = 1, end_to_end_id = 1, hop_by_hop_id = 1, is_request = true},
     #diameter_packet{bin = Bin} =
         diameter_codec:encode(?DICT, #diameter_packet{header = Hdr, msg = ['IDR' | Idr]}),
     #diameter_packet{msg = ['IDR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
     ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
     [SD] = maps:get('Subscription-Data', Decoded),
-    ?assertEqual([0], maps:get('Subscriber-Status', SD)),
+    ?assertEqual([?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED'], maps:get('Subscriber-Status', SD)),
     ok.
 
 ida_roundtrip(_Config) ->
-    Decoded = roundtrip('IDA', #{'Result-Code' => [2001]}),
-    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    Decoded = roundtrip('IDA', #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS']}),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Decoded)),
     ok.
 
 dsr_roundtrip(_Config) ->
     Common = #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
                'Origin-Host' => <<"hss">>, 'Origin-Realm' => <<"r">>},
     Dsr = Common#{'Destination-Host' => <<"mme-a">>, 'Destination-Realm' => <<"epc">>,
-                  'User-Name' => <<"001010000000001">>, 'DSR-Flags' => 1},
+                  'User-Name' => <<"001010000000001">>,
+                  'DSR-Flags' => ?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL},
     Hdr = #diameter_header{version = 1, end_to_end_id = 1, hop_by_hop_id = 1, is_request = true},
     #diameter_packet{bin = Bin} =
         diameter_codec:encode(?DICT, #diameter_packet{header = Hdr, msg = ['DSR' | Dsr]}),
     #diameter_packet{msg = ['DSR' | Decoded]} = diameter_codec:decode(?DICT, ?OPTS, Bin),
     ?assertEqual(<<"001010000000001">>, maps:get('User-Name', Decoded)),
-    ?assertEqual(1, maps:get('DSR-Flags', Decoded)),
+    ?assertEqual(?DSR_FLAG_REGIONAL_SUBSCRIPTION_WITHDRAWAL, maps:get('DSR-Flags', Decoded)),
     ok.
 
 dsa_roundtrip(_Config) ->
-    Decoded = roundtrip('DSA', #{'Result-Code' => [2001]}),
-    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    Decoded = roundtrip('DSA', #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS']}),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Decoded)),
     ok.
 
 rsr_request(_Config) ->
@@ -364,6 +374,6 @@ rsr_roundtrip(_Config) ->
     ok.
 
 rsa_roundtrip(_Config) ->
-    Decoded = roundtrip('RSA', #{'Result-Code' => [2001]}),
-    ?assertEqual([2001], maps:get('Result-Code', Decoded)),
+    Decoded = roundtrip('RSA', #{'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS']}),
+    ?assertEqual([?'DIAMETER_BASE_RESULT-CODE_SUCCESS'], maps:get('Result-Code', Decoded)),
     ok.

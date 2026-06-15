@@ -18,6 +18,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("diameter/include/diameter.hrl").
+-include("s6a_test.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([air_span/1]).
 
@@ -45,7 +46,7 @@ air(Imsi) ->
     ['AIR' | #{'Session-Id' => <<"s1">>, 'Auth-Session-State' => 1,
                'Origin-Host' => <<"mme">>, 'Origin-Realm' => <<"r">>,
                'Destination-Realm' => <<"r">>, 'User-Name' => Imsi,
-               'Visited-PLMN-Id' => <<0,16#f1,16#10>>,
+               'Visited-PLMN-Id' => ?VISITED_PLMN_001_01,
                'Requested-EUTRAN-Authentication-Info' => [#{'Number-Of-Requested-Vectors' => [1]}]}].
 
 %% AIR through handle_request emits an s6a.AIR span with command attribute

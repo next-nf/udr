@@ -18,6 +18,10 @@
 -moduledoc false.
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
+-include_lib("diameter/include/diameter_gen_base_rfc6733.hrl").
+-include_lib("udr_diameter/include/s6a_result_codes.hrl").
+-include_lib("udr_diameter/include/diameter_3gpp_s6a.hrl").
+-include("s6a_test.hrl").
 
 -export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, nor/1, received_clr/2, recorded_clr/1, received_idr/2, recorded_idr/1, received_dsr/2, recorded_dsr/1, received_rsr/2, recorded_rsr/1]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
@@ -30,8 +34,6 @@
 %% a Destination-Realm matching it so diameter selects the HSS peer.
 -define(HSS_REALM, <<"epc.mnc001.mcc001.3gppnetwork.org">>).
 -define(APP_ID, 16777251).
--define(VENDOR_3GPP, 10415).
--define(VISITED_PLMN, <<0, 16#f1, 16#10>>).
 
 %% --- lifecycle ---
 
@@ -51,11 +53,11 @@ stop() ->
 svc_opts() ->
     [{'Origin-Host', ?OWN_HOST},
      {'Origin-Realm', ?OWN_REALM},
-     {'Vendor-Id', ?VENDOR_3GPP},
+     {'Vendor-Id', ?VENDOR_ID_3GPP},
      {'Product-Name', "test-mme"},
      {'Auth-Application-Id', [?APP_ID]},
      {'Vendor-Specific-Application-Id',
-        [[{'Vendor-Id', ?VENDOR_3GPP}, {'Auth-Application-Id', [?APP_ID]}]]},
+        [[{'Vendor-Id', ?VENDOR_ID_3GPP}, {'Auth-Application-Id', [?APP_ID]}]]},
      {string_decode, false},
      {decode_format, map},
      {application, [{alias, s6a},
@@ -90,7 +92,7 @@ wait_up(N) ->
 air(Imsi, N) ->
     Avps = (common(?OWN_HOST))#{
         'User-Name' => Imsi,
-        'Visited-PLMN-Id' => ?VISITED_PLMN,
+        'Visited-PLMN-Id' => ?VISITED_PLMN_001_01,
         'Requested-EUTRAN-Authentication-Info' =>
             [#{'Number-Of-Requested-Vectors' => [N]}]},
     diameter:call(?SVC, s6a, ['AIR' | Avps], []).
@@ -108,7 +110,7 @@ bad_air(Imsi) ->
                             data = <<0, 0, 0, 0>>},
     Avps = (common(?OWN_HOST))#{
         'User-Name' => Imsi,
-        'Visited-PLMN-Id' => ?VISITED_PLMN,
+        'Visited-PLMN-Id' => ?VISITED_PLMN_001_01,
         'Requested-EUTRAN-Authentication-Info' =>
             [#{'Number-Of-Requested-Vectors' => [1]}],
         'AVP' => [Unknown]},
@@ -118,9 +120,9 @@ bad_air(Imsi) ->
 ulr(Imsi, MmeHost) ->
     Avps = (common(MmeHost))#{
         'User-Name' => Imsi,
-        'RAT-Type' => 1004,        %% EUTRAN
+        'RAT-Type' => ?'S6A_RAT-TYPE_EUTRAN',
         'ULR-Flags' => 0,
-        'Visited-PLMN-Id' => ?VISITED_PLMN},
+        'Visited-PLMN-Id' => ?VISITED_PLMN_001_01},
     diameter:call(?SVC, s6a, ['ULR' | Avps], []).
 
 -spec pur(binary()) -> {ok, list()} | {error, term()}.
@@ -247,7 +249,7 @@ handle_request(#diameter_packet{msg = ['CLR' | Avps]}, _Svc, {_Ref, Caps}) ->
     ok = persistent_term:put({?MODULE, clr, Imsi}, Avps),
     #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
     {reply, ['CLA' | #{'Session-Id' => maps:get('Session-Id', Avps),
-                       'Result-Code' => [2001],
+                       'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'],
                        'Auth-Session-State' => 1,
                        'Origin-Host' => OH,
                        'Origin-Realm' => OR}]};
@@ -256,7 +258,7 @@ handle_request(#diameter_packet{msg = ['IDR' | Avps]}, _Svc, {_Ref, Caps}) ->
     ok = persistent_term:put({?MODULE, idr, Imsi}, Avps),
     #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
     {reply, ['IDA' | #{'Session-Id' => maps:get('Session-Id', Avps),
-                       'Result-Code' => [2001],
+                       'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'],
                        'Auth-Session-State' => 1,
                        'Origin-Host' => OH,
                        'Origin-Realm' => OR}]};
@@ -265,7 +267,7 @@ handle_request(#diameter_packet{msg = ['DSR' | Avps]}, _Svc, {_Ref, Caps}) ->
     ok = persistent_term:put({?MODULE, dsr, Imsi}, Avps),
     #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
     {reply, ['DSA' | #{'Session-Id' => maps:get('Session-Id', Avps),
-                       'Result-Code' => [2001],
+                       'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'],
                        'Auth-Session-State' => 1,
                        'Origin-Host' => OH,
                        'Origin-Realm' => OR}]};
@@ -274,7 +276,7 @@ handle_request(#diameter_packet{msg = ['RSR' | Avps]}, _Svc, {_Ref, Caps}) ->
     ok = persistent_term:put({?MODULE, rsr, Host}, Avps),
     #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
     {reply, ['RSA' | #{'Session-Id' => maps:get('Session-Id', Avps),
-                       'Result-Code' => [2001],
+                       'Result-Code' => [?'DIAMETER_BASE_RESULT-CODE_SUCCESS'],
                        'Auth-Session-State' => 1,
                        'Origin-Host' => OH,
                        'Origin-Realm' => OR}]};

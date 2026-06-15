@@ -17,6 +17,7 @@
 -module(udr_hss_ulr_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("udr_hss_test.hrl").
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([first_ulr_returns_profile_registers_mme_no_clr/1,
          ulr_new_mme_emits_cancel_location/1,
@@ -55,7 +56,7 @@ provision(Imsi) ->
 
 ulr_req(Imsi, MmeHost) ->
     #{imsi => Imsi, mme_host => MmeHost, mme_realm => <<"epc.mnc001.mcc001">>,
-      rat_type => eutran, visited_plmn => binary:decode_hex(<<"00f110">>)}.
+      rat_type => eutran, visited_plmn => ?VISITED_PLMN_001_01}.
 
 first_ulr_returns_profile_registers_mme_no_clr(_Config) ->
     Imsi = <<"001010000000003">>,
