@@ -73,5 +73,6 @@ This runbook covers pointing the node's [OpenTelemetry](../glossary.md) instrume
 ### Related
 
 - [Observability configuration reference](../configuration/observability.md) — the OpenTelemetry, exporter, and reader parameters.
+- [Metrics reference](../../../METRICS.md) — the `s6a.requests` and `s6a.handler.duration` instruments and the Grafana dashboard.
 - [`RUN-S6A-PEER-001`](s6a-peer.md) — drive an AIR to produce a span.
 - [S6a interface reference](../interfaces/s6a.md) §8 — the `s6a.AIR` span and its `s6a.result` attribute.
