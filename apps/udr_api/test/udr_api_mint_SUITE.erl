@@ -35,16 +35,13 @@ all() ->
      rejects_missing_keys, rejects_invalid_amf, amf_not_configured].
 
 %% Single source of truth for each case's IMSI. The udr_db ETS store is a
-%% node-wide table shared by every suite in a `rebar3 ct` run, so each case
-%% clears its IMSI both before (init) and after (end) it runs -- self-contained
-%% regardless of run order or what another suite wrote. Reading the IMSI from
-%% here (via ?config(imsi, _)) rather than hardcoding it per case means there is
-%% no list to keep in sync, and a case absent from this map fails loudly with a
-%% function_clause instead of silently skipping cleanup.
-%%
-%% NOTE: per-suite clearing is a workaround for the shared-store test isolation
-%% gap; a central CT-hook/udr_db reset that flushes the store between suites
-%% would remove the need for any of this, and is tracked as a follow-up.
+%% node-wide table shared by every suite in a `rebar3 ct` run; cross-suite
+%% isolation is handled centrally by udr_db_reset_cth, which flushes a leaked
+%% store between suites. Each case still uses a distinct IMSI so the cases
+%% within this suite don't collide with one another. Reading the IMSI from here
+%% (via ?config(imsi, _)) rather than hardcoding it per case means there is no
+%% list to keep in sync, and a case absent from this map fails loudly with a
+%% function_clause instead of silently skipping.
 imsi(stores_identity)           -> <<"001010000000011">>;
 imsi(opc_matches_derivation)    -> <<"001010000000010">>;
 imsi(rejects_double_provision)  -> <<"001010000000012">>;
@@ -71,18 +68,10 @@ init_per_testcase(TestCase, Config) ->
     {ok, Started2} = application:ensure_all_started(udr_cluster),
     {ok, Started3} = application:ensure_all_started(udr_crypto),
     Imsi = imsi(TestCase),
-    clear(Imsi),
     [{imsi, Imsi}, {started, Started1 ++ Started2 ++ Started3} | Config].
 
 end_per_testcase(_TestCase, Config) ->
-    clear(?config(imsi, Config)),
     [ application:stop(A) || A <- lists:reverse(?config(started, Config)) ],
-    ok.
-
-%% Drop both records for an IMSI from the shared store (idempotent).
-clear(Imsi) ->
-    udr_data:delete_authentication_subscription(Imsi),
-    udr_data:delete_subscription_data(Imsi),
     ok.
 
 stores_identity(Config) ->
