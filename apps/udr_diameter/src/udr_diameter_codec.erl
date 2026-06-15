@@ -19,13 +19,16 @@
            "maps. Honors OTP map arity: required-once AVPs are bare, optional/repeatable\n"
            "are lists, grouped are nested maps. The single S6a<->semantic conversion point.".
 
--export([decode_air/1, decode_ulr/1, decode_pur/1,
-         encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, clr_request/1]).
+-export([decode_air/1, decode_ulr/1, decode_pur/1, decode_nor/1,
+         encode_air_answer/1, encode_ulr_answer/1, encode_pua_answer/1, encode_noa_answer/1,
+         clr_request/1, idr_request/1, dsr_request/1, rsr_request/1]).
 
 -define(SUCCESS, 2001).
 -define(UNABLE_TO_COMPLY, 5012).
 -define(USER_UNKNOWN, 5001).
 -define(UNKNOWN_EPS_SUBSCRIPTION, 5420).
+-define(UNKNOWN_SERVING_NODE, 5423).
+-define(AUTH_DATA_UNAVAILABLE, 4181).
 -define(VENDOR_3GPP, 10415).
 
 -doc "Decode an AIR AVP map into the semantic AIR request for udr_hss:handle_air/1.".
@@ -40,16 +43,42 @@ decode_air(#{'User-Name' := Imsi, 'Visited-PLMN-Id' := VPlmn} = Avps) ->
 -doc "Decode a ULR AVP map into the semantic ULR request.".
 -spec decode_ulr(map()) -> map().
 decode_ulr(#{'User-Name' := Imsi, 'Origin-Host' := Host, 'Origin-Realm' := Realm} = Avps) ->
+    Flags = maps:get('ULR-Flags', Avps, 0),
     #{imsi         => Imsi,
       mme_host     => Host,
       mme_realm    => Realm,
       rat_type     => maps:get('RAT-Type', Avps, undefined),
-      visited_plmn => maps:get('Visited-PLMN-Id', Avps, <<>>)}.
+      visited_plmn => maps:get('Visited-PLMN-Id', Avps, <<>>),
+      ulr_flags    => Flags,
+      %% TS 29.272 §7.3.7 ULR-Flags: bit 2 Skip-Subscriber-Data, bit 5 Initial-Attach.
+      skip_subscriber_data => (Flags band 16#4) =/= 0,
+      initial_attach       => (Flags band 16#20) =/= 0}.
 
 -doc "Decode a PUR AVP map into the semantic PUR request.".
 -spec decode_pur(map()) -> map().
-decode_pur(#{'User-Name' := Imsi}) ->
-    #{imsi => Imsi}.
+decode_pur(#{'User-Name' := Imsi, 'Origin-Host' := Host}) ->
+    #{imsi => Imsi, mme_host => Host}.
+
+-doc "Decode a NOR AVP map into the semantic Notify request.".
+-spec decode_nor(map()) -> map().
+decode_nor(#{'User-Name' := Imsi, 'Origin-Host' := Host} = Avps) ->
+    Base = #{imsi => Imsi, mme_host => Host},
+    case maps:get('Terminal-Information', Avps, []) of
+        [TI | _] -> Base#{terminal_information => terminal_info(TI)};
+        _        -> Base
+    end.
+
+%% IMEI / Software-Version are optional AVPs inside the grouped
+%% Terminal-Information, so the map decode delivers each as a 1-element list.
+terminal_info(TI) ->
+    M0 = case maps:get('IMEI', TI, []) of
+             [Imei | _] -> #{<<"imei">> => Imei};
+             _          -> #{}
+         end,
+    case maps:get('Software-Version', TI, []) of
+        [Sv | _] -> M0#{<<"software_version">> => Sv};
+        _        -> M0
+    end.
 
 -doc "Build the AIA answer AVPs from udr_hss:handle_air/1's result.".
 -spec encode_air_answer(term()) -> map().
@@ -60,35 +89,84 @@ encode_air_answer({ok, #{vectors := Vs}}) ->
 encode_air_answer({error, Reason}) ->
     error_avps(Reason).
 
--doc "Build the ULA answer AVPs (incl. minimal Subscription-Data) from handle_ulr's result.".
+-doc "Build the ULA answer AVPs (incl. Subscription-Data unless skipped) from handle_ulr's result.".
 -spec encode_ulr_answer(term()) -> map().
-encode_ulr_answer({ok, #{subscription_data := Profile}}) ->
-    #{'Result-Code' => [?SUCCESS],
-      'ULA-Flags' => [1],
-      'Subscription-Data' => [subscription_data(Profile)]};
+encode_ulr_answer({ok, Answer}) when is_map(Answer) ->
+    Base = #{'Result-Code' => [?SUCCESS], 'ULA-Flags' => [1]},
+    case maps:get(subscription_data, Answer, undefined) of
+        undefined -> Base;
+        Profile   -> Base#{'Subscription-Data' => [subscription_data(Profile)]}
+    end;
 encode_ulr_answer({error, Reason}) ->
     error_avps(Reason).
 
--doc "Build the PUA answer AVPs from handle_pur's result.".
+-doc "Build the PUA answer AVPs from handle_pur's result (PUA-Flags bit 0 = Freeze M-TMSI).".
 -spec encode_pua_answer(term()) -> map().
-encode_pua_answer({ok, _}) ->
-    #{'Result-Code' => [?SUCCESS], 'PUA-Flags' => [1]};
+encode_pua_answer({ok, Answer}) when is_map(Answer) ->
+    Freeze = case maps:get(freeze_m_tmsi, Answer, false) of
+                 true  -> 1;
+                 false -> 0
+             end,
+    #{'Result-Code' => [?SUCCESS], 'PUA-Flags' => [Freeze]};
 encode_pua_answer({error, Reason}) ->
+    error_avps(Reason).
+
+-doc "Build the NOA answer AVPs from handle_nor's result.".
+-spec encode_noa_answer(term()) -> map().
+encode_noa_answer({ok, _}) ->
+    #{'Result-Code' => [?SUCCESS]};
+encode_noa_answer({error, Reason}) ->
     error_avps(Reason).
 
 -doc "Build the CLR request AVPs (HSS-originated) for the cancel_location effect.".
 -spec clr_request(map()) -> map().
-clr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm}) ->
+clr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm} = Info) ->
     #{'User-Name' => Imsi,
       'Destination-Host'  => Host,
       'Destination-Realm' => Realm,
-      'Cancellation-Type' => 2}.   %% 2 = SUBSCRIPTION_WITHDRAWAL
+      'Cancellation-Type' =>
+          cancellation_type(maps:get(cancellation_type, Info, mme_update_procedure))}.
+
+-doc "Build the IDR request AVPs (HSS-originated) for the insert_subscriber_data effect.".
+-spec idr_request(map()) -> map().
+idr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm, subscription_data := Profile}) ->
+    #{'User-Name' => Imsi,
+      'Destination-Host'  => Host,
+      'Destination-Realm' => Realm,
+      'Subscription-Data' => [subscription_data(Profile)]}.
+
+-doc "Build the DSR request AVPs (HSS-originated) for the delete_subscriber_data effect.\n"
+     "dsr_flags is the TS 29.272 7.3.25 bitmask of data classes to withdraw.".
+-spec dsr_request(map()) -> map().
+dsr_request(#{imsi := Imsi, mme_host := Host, mme_realm := Realm, dsr_flags := Flags}) ->
+    #{'User-Name' => Imsi,
+      'Destination-Host'  => Host,
+      'Destination-Realm' => Realm,
+      'DSR-Flags' => Flags}.
+
+-doc "Build the RSR request AVPs (HSS-originated) for the reset effect. Reset is not\n"
+     "per-subscriber: a bare RSR (Destination only) resets all impacted subscribers at the node.".
+-spec rsr_request(map()) -> map().
+rsr_request(#{mme_host := Host, mme_realm := Realm}) ->
+    #{'Destination-Host'  => Host,
+      'Destination-Realm' => Realm}.
+
+%% TS 29.272 §7.3.24 Cancellation-Type wire values.
+cancellation_type(mme_update_procedure)     -> 0;
+cancellation_type(sgsn_update_procedure)    -> 1;
+cancellation_type(subscription_withdrawal)  -> 2;
+cancellation_type(update_procedure_iwf)     -> 3;
+cancellation_type(initial_attach_procedure) -> 4.
 
 %% --- error mapping: 3GPP vendor codes via Experimental-Result; base codes via Result-Code ---
 error_avps(user_unknown) ->
     experimental(?USER_UNKNOWN);
 error_avps(unknown_eps_subscription) ->
     experimental(?UNKNOWN_EPS_SUBSCRIPTION);
+error_avps(unknown_serving_node) ->
+    experimental(?UNKNOWN_SERVING_NODE);
+error_avps(authentication_data_unavailable) ->
+    experimental(?AUTH_DATA_UNAVAILABLE);
 error_avps(_Other) ->
     #{'Result-Code' => [?UNABLE_TO_COMPLY]}.
 

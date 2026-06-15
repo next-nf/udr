@@ -18,10 +18,10 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
--export([air/1, ulr_then_clr/1, pur/1,
+-export([air/1, ulr_then_clr/1, pur/1, nor/1, idr/1, dsr/1, rsr/1,
          common_dictionary_is_rfc6733/1, decode_errors_answer_not_crash/1]).
 
-all() -> [air, ulr_then_clr, pur,
+all() -> [air, ulr_then_clr, pur, nor, idr, dsr, rsr,
           common_dictionary_is_rfc6733, decode_errors_answer_not_crash].
 
 init_per_suite(Config) ->
@@ -60,12 +60,51 @@ ulr_then_clr(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
     {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-b">>),
-    ?assertEqual(true, udr_diameter_test_mme:received_clr(Imsi, 2000)).
+    ?assertEqual(true, udr_diameter_test_mme:received_clr(Imsi, 2000)),
+    Clr = udr_diameter_test_mme:recorded_clr(Imsi),
+    %% ULR-Flags carried 0 (no Initial-Attach) -> MME Update Procedure (0).
+    ?assertEqual(0, maps:get('Cancellation-Type', Clr)),
+    ok.
 
 pur(Config) ->
     Imsi = ?config(imsi, Config),
     {ok, ['PUA' | Ans]} = udr_diameter_test_mme:pur(Imsi),
     ?assertEqual([2001], maps:get('Result-Code', Ans)).
+
+nor(Config) ->
+    Imsi = ?config(imsi, Config),
+    %% Register this connection's MME (mme-a) as the serving node, then notify.
+    {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
+    {ok, ['NOA' | Ans]} = udr_diameter_test_mme:nor(Imsi),
+    ?assertEqual([2001], maps:get('Result-Code', Ans)),
+    ok.
+
+idr(Config) ->
+    Imsi = ?config(imsi, Config),
+    %% Register this connection's MME (mme-a) as the serving node, then push IDR.
+    {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
+    ok = udr_diameter_s6a:push_subscriber_data(Imsi),
+    ?assertEqual(true, udr_diameter_test_mme:received_idr(Imsi, 2000)),
+    Idr = udr_diameter_test_mme:recorded_idr(Imsi),
+    ?assert(maps:is_key('Subscription-Data', Idr)),
+    ok.
+
+dsr(Config) ->
+    Imsi = ?config(imsi, Config),
+    {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
+    ok = udr_diameter_s6a:delete_subscriber_data(Imsi, 1),
+    ?assertEqual(true, udr_diameter_test_mme:received_dsr(Imsi, 2000)),
+    Dsr = udr_diameter_test_mme:recorded_dsr(Imsi),
+    ?assertEqual(1, maps:get('DSR-Flags', Dsr)),
+    ok.
+
+rsr(Config) ->
+    Imsi = ?config(imsi, Config),
+    {ok, ['ULA' | _]} = udr_diameter_test_mme:ulr(Imsi, <<"mme-a">>),
+    ok = udr_diameter_s6a:reset(),
+    %% Reset fans out to the registered serving node (mme-a).
+    ?assertEqual(true, udr_diameter_test_mme:received_rsr(<<"mme-a">>, 2000)),
+    ok.
 
 %% The HSS must register the RFC 6733 base as its common application (App-Id 0)
 %% so diameter's negotiated common dictionary ("Dict0") is RFC 6733, not the

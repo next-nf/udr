@@ -19,7 +19,7 @@
 -behaviour(diameter_app).
 -include_lib("diameter/include/diameter.hrl").
 
--export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, received_clr/2]).
+-export([start/1, stop/0, air/2, bad_air/1, ulr/2, pur/1, nor/1, received_clr/2, recorded_clr/1, received_idr/2, recorded_idr/1, received_dsr/2, recorded_dsr/1, received_rsr/2, recorded_rsr/1]).
 -export([peer_up/3, peer_down/3, pick_peer/4, prepare_request/3,
          prepare_retransmit/3, handle_answer/4, handle_error/4, handle_request/3]).
 
@@ -128,6 +128,14 @@ pur(Imsi) ->
     Avps = (common(?OWN_HOST))#{'User-Name' => Imsi},
     diameter:call(?SVC, s6a, ['PUR' | Avps], []).
 
+-spec nor(binary()) -> {ok, list()} | {error, term()}.
+nor(Imsi) ->
+    Avps = (common(?OWN_HOST))#{
+        'User-Name' => Imsi,
+        'Terminal-Information' => [#{'IMEI' => <<"3534">>, 'Software-Version' => <<"01">>}],
+        'NOR-Flags' => 0},
+    diameter:call(?SVC, s6a, ['NOR' | Avps], []).
+
 %% Common request AVPs. OriginHost is the serving-MME identity the HSS records;
 %% it is carried in the message even though the connection identity stays mme-a.
 common(OriginHost) ->
@@ -148,6 +156,47 @@ received_clr(Imsi, Timeout) ->
         undefined -> timer:sleep(50), received_clr(Imsi, Timeout - 50);
         _Avps     -> true
     end.
+
+%% Return the AVP map of the last CLR recorded for an IMSI (undefined if none).
+-spec recorded_clr(binary()) -> map() | undefined.
+recorded_clr(Imsi) ->
+    persistent_term:get({?MODULE, clr, Imsi}, undefined).
+
+-spec received_idr(binary(), non_neg_integer()) -> boolean().
+received_idr(Imsi, Timeout) ->
+    case persistent_term:get({?MODULE, idr, Imsi}, undefined) of
+        undefined when Timeout =< 0 -> false;
+        undefined -> timer:sleep(50), received_idr(Imsi, Timeout - 50);
+        _Avps     -> true
+    end.
+
+-spec recorded_idr(binary()) -> map() | undefined.
+recorded_idr(Imsi) ->
+    persistent_term:get({?MODULE, idr, Imsi}, undefined).
+
+-spec received_dsr(binary(), non_neg_integer()) -> boolean().
+received_dsr(Imsi, Timeout) ->
+    case persistent_term:get({?MODULE, dsr, Imsi}, undefined) of
+        undefined when Timeout =< 0 -> false;
+        undefined -> timer:sleep(50), received_dsr(Imsi, Timeout - 50);
+        _Avps     -> true
+    end.
+
+-spec recorded_dsr(binary()) -> map() | undefined.
+recorded_dsr(Imsi) ->
+    persistent_term:get({?MODULE, dsr, Imsi}, undefined).
+
+-spec received_rsr(binary(), non_neg_integer()) -> boolean().
+received_rsr(Host, Timeout) ->
+    case persistent_term:get({?MODULE, rsr, Host}, undefined) of
+        undefined when Timeout =< 0 -> false;
+        undefined -> timer:sleep(50), received_rsr(Host, Timeout - 50);
+        _Avps     -> true
+    end.
+
+-spec recorded_rsr(binary()) -> map() | undefined.
+recorded_rsr(Host) ->
+    persistent_term:get({?MODULE, rsr, Host}, undefined).
 
 %% --- diameter_app callbacks ---
 
@@ -198,6 +247,33 @@ handle_request(#diameter_packet{msg = ['CLR' | Avps]}, _Svc, {_Ref, Caps}) ->
     ok = persistent_term:put({?MODULE, clr, Imsi}, Avps),
     #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
     {reply, ['CLA' | #{'Session-Id' => maps:get('Session-Id', Avps),
+                       'Result-Code' => [2001],
+                       'Auth-Session-State' => 1,
+                       'Origin-Host' => OH,
+                       'Origin-Realm' => OR}]};
+handle_request(#diameter_packet{msg = ['IDR' | Avps]}, _Svc, {_Ref, Caps}) ->
+    Imsi = maps:get('User-Name', Avps),
+    ok = persistent_term:put({?MODULE, idr, Imsi}, Avps),
+    #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
+    {reply, ['IDA' | #{'Session-Id' => maps:get('Session-Id', Avps),
+                       'Result-Code' => [2001],
+                       'Auth-Session-State' => 1,
+                       'Origin-Host' => OH,
+                       'Origin-Realm' => OR}]};
+handle_request(#diameter_packet{msg = ['DSR' | Avps]}, _Svc, {_Ref, Caps}) ->
+    Imsi = maps:get('User-Name', Avps),
+    ok = persistent_term:put({?MODULE, dsr, Imsi}, Avps),
+    #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
+    {reply, ['DSA' | #{'Session-Id' => maps:get('Session-Id', Avps),
+                       'Result-Code' => [2001],
+                       'Auth-Session-State' => 1,
+                       'Origin-Host' => OH,
+                       'Origin-Realm' => OR}]};
+handle_request(#diameter_packet{msg = ['RSR' | Avps]}, _Svc, {_Ref, Caps}) ->
+    Host = maps:get('Destination-Host', Avps),
+    ok = persistent_term:put({?MODULE, rsr, Host}, Avps),
+    #diameter_caps{origin_host = {OH, _}, origin_realm = {OR, _}} = Caps,
+    {reply, ['RSA' | #{'Session-Id' => maps:get('Session-Id', Avps),
                        'Result-Code' => [2001],
                        'Auth-Session-State' => 1,
                        'Origin-Host' => OH,

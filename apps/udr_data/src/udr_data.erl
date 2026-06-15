@@ -25,7 +25,8 @@
          delete_subscription_data/1,
          get_am_subscription/1, get_sm_subscription/1,
          get_3gpp_access_registration/1, put_3gpp_access_registration/2,
-         delete_3gpp_access_registration/1]).
+         delete_3gpp_access_registration/1,
+         registered_serving_nodes/0]).
 
 -define(AUTH, auth_subscription).
 -define(SUB, subscription_data).
@@ -152,3 +153,19 @@ put_3gpp_access_registration(Imsi, Reg) ->
 -spec delete_3gpp_access_registration(imsi()) -> ok | {error, term()}.
 delete_3gpp_access_registration(Imsi) ->
     udr_db:delete(?REG, Imsi).
+
+-doc "Distinct, non-purged serving nodes (Host, Realm) across all 3GPP access\n"
+     "registrations. Used by the Reset procedure to fan out RSR to each serving node.".
+-spec registered_serving_nodes() -> {ok, [{binary(), binary()}]} | {error, term()}.
+registered_serving_nodes() ->
+    case udr_db:find(?REG, #{}) of
+        {ok, Docs} ->
+            Nodes = [ {maps:get(<<"serving_mme_host">>, D),
+                       maps:get(<<"serving_mme_realm">>, D, <<>>)}
+                      || D <- Docs,
+                         maps:is_key(<<"serving_mme_host">>, D),
+                         maps:get(<<"ue_purged">>, D, false) =/= true ],
+            {ok, lists:usort(Nodes)};
+        {error, _} = E ->
+            E
+    end.
