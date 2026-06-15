@@ -1,15 +1,15 @@
-# Interface Reference: Provisioning API (`udr_provision`)
+# Interface Reference: Provisioning API (`udr_api`)
 
 **Applies to:** udr 0.1.0 · **Revised:** 2026-06-08
 
 ## 1. Scope
 
-This reference covers the admin provisioning HTTP API implemented by the `udr_provision` application. It documents the single resource the API exposes — a subscriber addressed by [IMSI](../glossary.md) — and its three methods: create-or-replace (`PUT`), read (`GET`), and delete (`DELETE`). It gives the exact request body schema and its validation, the read view (which fields are withheld), and every HTTP status code the handler returns.
+This reference covers the admin provisioning HTTP API implemented by the `udr_api` application. It documents the single resource the API exposes — a subscriber addressed by [IMSI](../glossary.md) — and its three methods: create-or-replace (`PUT`), read (`GET`), and delete (`DELETE`). It gives the exact request body schema and its validation, the read view (which fields are withheld), and every HTTP status code the handler returns.
 
 The bind address and port are configuration, covered in the [provisioning configuration reference](../configuration/provisioning.md). The cryptography that derives OPc from OP, and the on-disk subscriber schema, are out of scope.
 
 > [!NOTE]
-> This is the only resource the application routes (confirmed in `udr_provision_app.erl`: a single Cowboy route, `/provision/v1/subscribers/:imsi`).
+> This is the only resource the application routes (confirmed in `udr_api_app.erl`: a single Cowboy route, `/provision/v1/subscribers/:imsi`).
 
 ## 2. Terms
 
@@ -19,9 +19,9 @@ Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), S
 
 ## 3. Transport and conventions
 
-- **Protocol / transport:** HTTP over TCP, served by Cowboy (`cowboy:start_clear`, cleartext; confirmed in `udr_provision_app.erl`).
-- **Endpoint:** the `udr_provision` `ip` / `port` keys; shipped default `127.0.0.1:8090`. See the [configuration reference](../configuration/provisioning.md).
-- **Resource path:** `/provision/v1/subscribers/{imsi}`, where `{imsi}` is the [IMSI](../glossary.md) taken verbatim as the storage key (confirmed in `udr_provision_subscriber_h.erl`, `init/2`). Unlike the SBI, there is no `imsi-` prefix and no format check on `{imsi}`.
+- **Protocol / transport:** HTTP over TCP, served by Cowboy (`cowboy:start_clear`, cleartext; confirmed in `udr_api_app.erl`).
+- **Endpoint:** the `udr_api` `ip` / `port` keys; shipped default `127.0.0.1:8090`. See the [configuration reference](../configuration/provisioning.md).
+- **Resource path:** `/provision/v1/subscribers/{imsi}`, where `{imsi}` is the [IMSI](../glossary.md) taken verbatim as the storage key (confirmed in `udr_api_subscriber_h.erl`, `init/2`). Unlike the SBI, there is no `imsi-` prefix and no format check on `{imsi}`.
 - **Content type:** all responses are `application/json` (confirmed in `reply_json/3`).
 - **Authentication:** none. The handler performs no credential check on any request.
 
@@ -44,7 +44,7 @@ Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), S
 
 - **Purpose** *(informative):* create a new subscriber or replace an existing one with the supplied authentication credentials and optional profile.
 - **Request:** `PUT /provision/v1/subscribers/{imsi}`, `application/json`. The body `shall` be a JSON object containing an `auth` object; it `may` contain a `profile` object.
-- **Request body schema** (confirmed in `udr_provision_subscriber_h.erl`, `handle(<<"PUT">>, ...)` and `udr_provision_subscriber.erl`, `auth_from_json/1`):
+- **Request body schema** (confirmed in `udr_api_subscriber_h.erl`, `handle(<<"PUT">>, ...)` and `udr_api_subscriber.erl`, `auth_from_json/1`):
 
   | Field | Location | Required | Type | Meaning |
   | --- | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), S
 
 - **Purpose** *(informative):* read back a subscriber's authentication metadata and profile, without exposing the secret key material.
 - **Request:** `GET /provision/v1/subscribers/{imsi}`. No body.
-- **Response — success:** `200 OK`, `application/json`. The body is `{"auth": <metadata>, "profile": <profile>}` (confirmed in `udr_provision_subscriber.erl`, `to_view/2`):
+- **Response — success:** `200 OK`, `application/json`. The body is `{"auth": <metadata>, "profile": <profile>}` (confirmed in `udr_api_subscriber.erl`, `to_view/2`):
   - `auth.algorithm` — the stored algorithm (defaults to `"milenage"`).
   - `auth.amf` — the AMF, hex-encoded.
   - `auth.sqn` — the current SQN.
@@ -121,7 +121,7 @@ Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), S
 ```mermaid
 sequenceDiagram
     participant Admin
-    participant HSS as HSS (udr_provision)
+    participant HSS as HSS (udr_api)
     Admin->>HSS: PUT /provision/v1/subscribers/{imsi} — auth + profile
     Note over HSS: validate auth, derive OPc from OP if needed,<br/>store auth + profile
     HSS-->>Admin: 201 Created — {"imsi":...,"status":"provisioned"}
@@ -132,7 +132,7 @@ sequenceDiagram
 
 ## 7. Status / result codes
 
-Every status code below is returned by `udr_provision_subscriber_h.erl`. Bodies are `application/json`; error bodies are `{"error":"<message>"}`.
+Every status code below is returned by `udr_api_subscriber_h.erl`. Bodies are `application/json`; error bodies are `{"error":"<message>"}`.
 
 | Code | Returned when | Confirmed in |
 | --- | --- | --- |

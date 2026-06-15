@@ -14,7 +14,7 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_e2e_SUITE).
+-module(udr_api_e2e_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -28,10 +28,10 @@ all() -> [provision_then_air].
 init_per_suite(Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
     %% load before set_env so the .app default port doesn't clobber the test port
-    application:load(udr_provision),
-    application:set_env(udr_provision, port, ?PORT),
+    application:load(udr_api),
+    application:set_env(udr_api, port, ?PORT),
     {ok, S1} = application:ensure_all_started(udr_hss),
-    {ok, S2} = application:ensure_all_started(udr_provision),
+    {ok, S2} = application:ensure_all_started(udr_api),
     {ok, _}  = application:ensure_all_started(inets),
     [{started, lists:usort(S1 ++ S2)} | Config].
 

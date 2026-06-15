@@ -14,8 +14,8 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_sup).
--moduledoc "Top-level supervisor for udr_provision (Cowboy owns the listener).".
+-module(udr_api_sup).
+-moduledoc "Top-level supervisor for udr_api (Cowboy owns the listener).".
 -behaviour(supervisor).
 -export([start_link/0, init/1]).
 

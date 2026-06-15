@@ -86,13 +86,13 @@ This runbook covers the lifecycle of a deployed `udr` node: starting it, stoppin
 
   ```erlang
   [ A || {A,_,_} <- application:which_applications(),
-         lists:member(A, [udr, udr_hss, udr_diameter, udr_sbi, udr_provision]) ].
+         lists:member(A, [udr, udr_hss, udr_diameter, udr_sbi, udr_api]) ].
   ```
 
   The result `shall` list all five applications (order may vary):
 
   ```erlang
-  [udr_provision,udr_sbi,udr_diameter,udr_hss,udr]
+  [udr_api,udr_sbi,udr_diameter,udr_hss,udr]
   ```
 
 - After Step 4 (stop), confirm the node is down:

@@ -14,7 +14,7 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
--module(udr_provision_subscriber).
+-module(udr_api_subscriber).
 -moduledoc "Pure conversion between the provisioning JSON shape (hex strings) and the\n"
            "udr_data storage maps (binaries). OP->OPc is derived here at provisioning.".
 -export([auth_from_json/1, profile_from_json/1, to_view/2]).

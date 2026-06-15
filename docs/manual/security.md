@@ -17,15 +17,15 @@ The system holds the long-term secret authentication keys of every subscriber ([
 
 | ID | Exposure | Where | Confirmed in |
 | --- | --- | --- | --- |
-| `SEC-001` | Provisioning API is unauthenticated; any reachable caller can read and write every subscriber. | Provisioning listener, port `8090`. | `udr_provision_app.erl` (`cowboy:start_clear`, no auth middleware); [interfaces/provisioning.md](interfaces/provisioning.md). |
+| `SEC-001` | Provisioning API is unauthenticated; any reachable caller can read and write every subscriber. | Provisioning listener, port `8090`. | `udr_api_app.erl` (`cowboy:start_clear`, no auth middleware); [interfaces/provisioning.md](interfaces/provisioning.md). |
 | `SEC-002` | SBI returns long-term key material (Ki, OPc) in clear on the authentication-subscription resource. | SBI listener, port `8080`. | `udr_sbi.erl`, `auth_view/1` (hex-encodes `ki`/`opc`, no redaction); [interfaces/sbi.md §5.1](interfaces/sbi.md). |
-| `SEC-003` | All transport is plaintext; no listener terminates TLS. | All three listeners. | `udr_sbi_app.erl` and `udr_provision_app.erl` (`cowboy:start_clear`); `udr_diameter_srv.erl` (`diameter_tcp`, no TLS opts). |
+| `SEC-003` | All transport is plaintext; no listener terminates TLS. | All three listeners. | `udr_sbi_app.erl` and `udr_api_app.erl` (`cowboy:start_clear`); `udr_diameter_srv.erl` (`diameter_tcp`, no TLS opts). |
 | `SEC-004` | The Erlang distribution cookie is the cluster trust boundary; knowing it grants code execution on every node. | Erlang distribution between cluster nodes. | [configuration/cluster.md](configuration/cluster.md); [`RUN-SECRETS-001`](operations/secrets.md). |
 | `SEC-005` | Secret material is stored and backed up in clear (Ki/OPc in the data store and in MongoDB backups). | `udr_db` store; backup archives. | [`RUN-SECRETS-001`](operations/secrets.md), [`RUN-BACKUP-001`](operations/backup-restore.md). |
 
 ## 3. Unauthenticated provisioning API (`SEC-001`)
 
-The provisioning HTTP API on port `8090` performs no authentication. Its listener is started with `cowboy:start_clear` and a router that mounts the subscriber handler directly, with no authentication or authorization stream handler in front of it (confirmed in `udr_provision_app.erl`). Any caller that can open a TCP connection to the listener can create, read, replace, and delete any subscriber by [IMSI](glossary.md), including writing arbitrary [Ki](glossary.md)/[OPc](glossary.md) values.
+The provisioning HTTP API on port `8090` performs no authentication. Its listener is started with `cowboy:start_clear` and a router that mounts the subscriber handler directly, with no authentication or authorization stream handler in front of it (confirmed in `udr_api_app.erl`). Any caller that can open a TCP connection to the listener can create, read, replace, and delete any subscriber by [IMSI](glossary.md), including writing arbitrary [Ki](glossary.md)/[OPc](glossary.md) values.
 
 > [!CAUTION]
 > A reachable provisioning port is a full read/write breach of the subscriber database. An attacker can enroll rogue subscribers, overwrite credentials, or delete the entire subscriber base.
@@ -34,7 +34,7 @@ Hardening:
 
 - The provisioning listener `shall` be confined to a trusted management interface. The shipped default binds it to loopback `127.0.0.1:8090`, which exposes no port to the network; that default `shall not` be widened to a routable address unless an external control restricts who can reach it.
 - Where remote provisioning is needed, an authenticating reverse proxy or a network policy that admits only the provisioning host `should` be placed in front of the listener; the listener `should not` be reachable directly from any subscriber-facing or peer-facing network.
-- The bind address is set by the `ip` key of `udr_provision`; see the [provisioning configuration reference](configuration/provisioning.md). The operational procedure is [`RUN-PROVISION-001`](operations/provisioning.md).
+- The bind address is set by the `ip` key of `udr_api`; see the [provisioning configuration reference](configuration/provisioning.md). The operational procedure is [`RUN-PROVISION-001`](operations/provisioning.md).
 
 **Verify.** From a host that `should not` have provisioning access, a `curl` to `http://<node>:8090/provision/v1/subscribers/001010000000001` `shall` fail to connect (connection refused or timed out). A successful response from such a host indicates the listener is over-exposed.
 
@@ -57,7 +57,7 @@ Hardening:
 
 No listener in this system terminates [TLS](glossary.md):
 
-- The SBI listener and the provisioning listener are started with `cowboy:start_clear`, which serves cleartext [HTTP](glossary.md) with no TLS (confirmed in `udr_sbi_app.erl` and `udr_provision_app.erl`). There is no `cowboy:start_tls` call anywhere in the source.
+- The SBI listener and the provisioning listener are started with `cowboy:start_clear`, which serves cleartext [HTTP](glossary.md) with no TLS (confirmed in `udr_sbi_app.erl` and `udr_api_app.erl`). There is no `cowboy:start_tls` call anywhere in the source.
 - The S6a [Diameter](glossary.md) listener is added with `transport_module` `diameter_tcp` and no TLS transport options (confirmed in `udr_diameter_srv.erl`, `add_listener/1`). Diameter therefore runs over plain [TCP](glossary.md).
 
 The consequence is that subscriber identities, registration data, and — over the SBI — [Ki](glossary.md)/[OPc](glossary.md) cross the wire unencrypted, and a passive observer on the path can read them while an active one can modify them.

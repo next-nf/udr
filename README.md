@@ -52,7 +52,7 @@ This is a rebar3 umbrella. Each app is a single, well-scoped responsibility:
 | `udr_hss` | S6a HSS application logic (AIR / ULR / PUR) |
 | `udr_diameter` | S6a Diameter wire layer (codec + transport) |
 | `udr_sbi` | Nudr-flavoured 5G SBI (data repository) HTTP server |
-| `udr_provision` | Admin provisioning HTTP API |
+| `udr_api` | Admin provisioning HTTP API |
 | `udr_otel` | OpenTelemetry setup: metric instruments + span exporter |
 | `udr` | Top-level release application |
 
@@ -125,7 +125,7 @@ Resources under `/nudr-dr/v1/subscription-data/{ueId}`:
 | `GET` | `/provisioned-data/am-data` | Access-and-mobility subscription data |
 | `GET` `PUT` `DELETE` | `/context-data/amf-3gpp-access` | AMF 3GPP-access registration context |
 
-### Provisioning API (`udr_provision`, default `:8090`)
+### Provisioning API (`udr_api`, default `:8090`)
 
 | Method | Path | Action |
 | --- | --- | --- |
@@ -149,7 +149,7 @@ Runtime configuration lives in [`config/sys.config`](config/sys.config). Key sec
 ]},
 
 %% HTTP listeners
-{udr_provision, [{port, 8090}, {ip, {127,0,0,1}}]},
+{udr_api, [{port, 8090}, {ip, {127,0,0,1}}]},
 {udr_sbi,       [{port, 8080}, {ip, {127,0,0,1}}]},
 ```
 
