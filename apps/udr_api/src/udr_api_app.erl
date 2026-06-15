@@ -25,6 +25,7 @@ start(_StartType, _StartArgs) ->
     Ip   = application:get_env(udr_api, ip, {127,0,0,1}),
     Dispatch = cowboy_router:compile([
         {'_', [
+            {"/provision/v1/subscribers/:imsi/mint", udr_api_mint_h, []},
             {"/provision/v1/subscribers/:imsi", udr_api_subscriber_h, []}
         ]}
     ]),
