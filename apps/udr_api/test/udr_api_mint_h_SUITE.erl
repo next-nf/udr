@@ -17,16 +17,18 @@
 -module(udr_api_mint_h_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2,
+         end_per_testcase/2]).
 -export([mint_201/1, mint_conflict_409/1, missing_iccid_400/1,
-         bad_amf_400/1, op_not_configured_500/1, put_unchanged/1]).
+         bad_amf_400/1, op_not_configured_500/1, put_unchanged/1,
+         non_hex_amf_400/1]).
 
 -define(PORT, 8099).
 -define(OP, binary:decode_hex(<<"000102030405060708090a0b0c0d0e0f">>)).
 
 all() ->
     [mint_201, mint_conflict_409, missing_iccid_400, bad_amf_400,
-     op_not_configured_500, put_unchanged].
+     op_not_configured_500, put_unchanged, non_hex_amf_400].
 
 init_per_suite(Config) ->
     _ = application:load(udr_db),
@@ -45,6 +47,11 @@ init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_api, op, ?OP),
     application:set_env(udr_api, default_amf, binary:decode_hex(<<"b9b9">>)),
     Config.
+
+end_per_testcase(_TestCase, _Config) ->
+    application:set_env(udr_api, op, ?OP),
+    application:set_env(udr_api, default_amf, binary:decode_hex(<<"b9b9">>)),
+    ok.
 
 url(Path) -> "http://127.0.0.1:" ++ integer_to_list(?PORT) ++ Path.
 
@@ -92,6 +99,14 @@ op_not_configured_500(_Config) ->
     Body = udr_api_json:encode(#{<<"msisdn">> => <<"49170">>,
                                  <<"iccid">>  => <<"8988001000000000205">>}),
     {ok, {{_, 500, _}, _, _}} = post(mint_path(Imsi), Body),
+    ok.
+
+non_hex_amf_400(_Config) ->
+    Imsi = <<"001010000000207">>,
+    Body = udr_api_json:encode(#{<<"msisdn">> => <<"49170">>,
+                                 <<"iccid">>  => <<"8988001000000000207">>,
+                                 <<"amf">>    => <<"zzzz">>}),  %% not hex -> decode throws -> 400
+    {ok, {{_, 400, _}, _, _}} = post(mint_path(Imsi), Body),
     ok.
 
 put_unchanged(_Config) ->
