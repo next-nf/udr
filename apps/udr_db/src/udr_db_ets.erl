@@ -21,7 +21,7 @@
 -behaviour(gen_server).
 
 -export([child_spec/1, start_link/0]).
--export([get/2, put/3, delete/2, find/2, update/4]).
+-export([get/2, put/3, delete/2, find/2, update/4, flush/0]).
 -export([init/1, handle_call/3, handle_cast/2]).
 
 -define(TAB, udr_db_ets_tab).
@@ -62,6 +62,9 @@ find(Coll, Selector) ->
 update(Coll, Key, ExpectedVersion, Mutation) ->
     gen_server:call(?MODULE, {update, Coll, Key, ExpectedVersion, Mutation}).
 
+-spec flush() -> ok.
+flush() -> gen_server:call(?MODULE, flush).
+
 %% ---- gen_server ----
 
 -spec init([]) -> {ok, map()}.
@@ -92,6 +95,9 @@ handle_call({update, Coll, Key, ExpVsn, Mutation}, _From, St) ->
                 end
         end,
     {reply, Reply, St};
+handle_call(flush, _From, St) ->
+    true = ets:delete_all_objects(?TAB),
+    {reply, ok, St};
 handle_call(_Req, _From, St) ->
     {reply, {error, unexpected_call}, St}.
 

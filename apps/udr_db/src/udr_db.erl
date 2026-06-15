@@ -18,7 +18,7 @@
 -moduledoc "Facade for the pluggable document store. Dispatches to the backend module\n"
            "configured via the `{udr_db, backend}` app env (cached in persistent_term).".
 
--export([backend/0, get/2, put/3, delete/2, find/2, update/4]).
+-export([backend/0, get/2, put/3, delete/2, find/2, update/4, flush/0]).
 
 -define(PT_KEY, {udr_db, backend}).
 
@@ -63,3 +63,13 @@ find(Coll, Selector) -> (backend()):find(Coll, Selector).
     {ok, udr_db_backend:doc()} | {error, version_conflict} | {error, not_found} | {error, term()}.
 update(Coll, Key, ExpectedVersion, Mutation) ->
     (backend()):update(Coll, Key, ExpectedVersion, Mutation).
+
+-doc "Empty the entire store. DESTRUCTIVE and test/admin-only: refuses unless the\n"
+     "`{udr_db, allow_flush}` env is explicitly true (default false), so production\n"
+     "cannot wipe data by accident.".
+-spec flush() -> ok | {error, term()}.
+flush() ->
+    case application:get_env(udr_db, allow_flush, false) of
+        true  -> (backend()):flush();
+        false -> {error, flush_not_allowed}
+    end.
