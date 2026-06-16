@@ -22,13 +22,15 @@
 -export([air_returns_vectors_and_advances_sqn/1,
          air_unknown_imsi_returns_user_unknown/1,
          air_incomplete_auth_material_returns_auth_data_unavailable/1,
-         air_unknown_algorithm_returns_auth_data_unavailable/1]).
+         air_unknown_algorithm_returns_auth_data_unavailable/1,
+         air_tuak_returns_vectors/1]).
 
 all() ->
     [air_returns_vectors_and_advances_sqn,
      air_unknown_imsi_returns_user_unknown,
      air_incomplete_auth_material_returns_auth_data_unavailable,
-     air_unknown_algorithm_returns_auth_data_unavailable].
+     air_unknown_algorithm_returns_auth_data_unavailable,
+     air_tuak_returns_vectors].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -97,4 +99,29 @@ air_unknown_algorithm_returns_auth_data_unavailable(_Config) ->
                  udr_hss:handle_air(#{imsi => Imsi,
                                       visited_plmn => ?VISITED_PLMN_001_01,
                                       num_vectors => 1})),
+    ok.
+
+air_tuak_returns_vectors(_Config) ->
+    Imsi = <<"001010000000020">>,
+    %% Seed a TUAK subscriber: 16-byte Ki, 32-byte TOPc (stored in opc field).
+    Ki   = binary:decode_hex(<<"abababababababababababababababab">>),
+    TOPc = binary:decode_hex(<<"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd">>),
+    ok = udr_data:put_authentication_subscription(Imsi, #{
+        <<"ki">>        => Ki,
+        <<"opc">>       => TOPc,
+        <<"algorithm">> => <<"tuak">>,
+        <<"amf">>       => binary:decode_hex(<<"b9b9">>),
+        <<"sqn">>       => 0}),
+    {ok, Ans, Effects} = udr_hss:handle_air(#{imsi => Imsi,
+                                              visited_plmn => ?VISITED_PLMN_001_01,
+                                              num_vectors => 2}),
+    ?assertEqual([], Effects),
+    Vs = maps:get(vectors, Ans),
+    ?assertEqual(2, length(Vs)),
+    lists:foreach(fun(V) ->
+        ?assertEqual(16, byte_size(maps:get(rand, V))),
+        ?assertEqual(8,  byte_size(maps:get(xres, V))),
+        ?assertEqual(16, byte_size(maps:get(autn, V))),
+        ?assertEqual(32, byte_size(maps:get(kasme, V)))
+    end, Vs),
     ok.
