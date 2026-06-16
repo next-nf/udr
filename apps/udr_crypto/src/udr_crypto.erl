@@ -30,7 +30,7 @@
 -export([eps_vector/7, generate_eps_vectors/7, verify_resync/5, opc/3]).
 -export_type([algo/0]).
 
--type algo() :: milenage.
+-type algo() :: milenage | tuak.
 -type eps_av() :: term().  %% native-record value; term() keeps dialyzer happy (experimental feature)
 
 -doc "Compute one EPS-AKA authentication vector for a supplied RAND (pure).\n"
@@ -86,4 +86,5 @@ verify_resync(Algo, K, OPc, RAND, <<Conc:6/binary, MacS:8/binary>>) ->
         false -> {error, mac_failure}
     end.
 
-algo_module(milenage) -> udr_crypto_milenage.
+algo_module(milenage) -> udr_crypto_milenage;
+algo_module(tuak)     -> udr_crypto_tuak.

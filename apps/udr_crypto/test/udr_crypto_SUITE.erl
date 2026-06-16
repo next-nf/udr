@@ -19,11 +19,13 @@
 -include_lib("eunit/include/eunit.hrl").
 -import_record(udr_crypto, [eps_av]).
 -export([all/0]).
--export([eps_vector_set1/1, generate_vectors/1, resync_roundtrip/1, opc_dispatch/1]).
+-export([eps_vector_set1/1, generate_vectors/1, resync_roundtrip/1, opc_dispatch/1,
+         eps_vector_tuak/1]).
 
 -define(H(S), binary:decode_hex(<<S>>)).
 
-all() -> [eps_vector_set1, generate_vectors, resync_roundtrip, opc_dispatch].
+all() -> [eps_vector_set1, generate_vectors, resync_roundtrip, opc_dispatch,
+          eps_vector_tuak].
 
 %% End-to-end EPS vector for MILENAGE Set 1, SN-id 00f110.
 %%   XRES = RES = a54211d5e3ba50bf
@@ -81,4 +83,28 @@ opc_dispatch(_Config) ->
                  udr_crypto:opc(milenage,
                                 ?H("465b5ce8b199b49faa5f0a2ee238a6bc"),
                                 ?H("cdc202d5123e20f62b6d676ac72cb318"))),
+    ok.
+
+%% End-to-end EPS vector through udr_crypto for TUAK (TS 35.233 Set 1 inputs).
+%% Expected values are derived from the low-level TUAK functions rather than
+%% hardcoded — TS 35.233 Set 1 RES is the 32-bit UMTS profile output (657acd64),
+%% whereas the EPS profile always yields 64-bit f2.
+eps_vector_tuak(_Config) ->
+    K    = ?H("abababababababababababababababab"),
+    TOP  = ?H("5555555555555555555555555555555555555555555555555555555555555555"),
+    RAND = ?H("42424242424242424242424242424242"),
+    AMF  = ?H("ffff"),
+    SQN  = ?H("111111111111"),
+    SnId = <<1, 1, 1>>,
+    TOPc = udr_crypto_tuak:topc_gen(K, TOP, 1),
+    V = udr_crypto:eps_vector(tuak, K, TOPc, AMF, SQN, RAND, SnId),
+    %% AUTN = (SQN XOR AK) ++ AMF ++ MAC-A; trailing 8 bytes are MAC-A.
+    <<_SqnXorAk:6/binary, _Amf:2/binary, MacA:8/binary>> = V#eps_av.autn,
+    ExpectedMacA = udr_crypto_tuak:f1(K, TOPc, RAND, SQN, AMF),
+    ExpectedXres = udr_crypto_tuak:f2(K, TOPc, RAND),
+    ?assertEqual(ExpectedMacA, MacA),
+    ?assertEqual(ExpectedXres, V#eps_av.xres),
+    ?assertEqual(16, byte_size(V#eps_av.rand)),
+    ?assertEqual(16, byte_size(V#eps_av.autn)),
+    ?assertEqual(32, byte_size(V#eps_av.kasme)),
     ok.
