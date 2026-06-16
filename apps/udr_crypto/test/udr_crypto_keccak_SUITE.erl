@@ -18,9 +18,9 @@
 -module(udr_crypto_keccak_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, sha3_256_oracle/1, state_roundtrip/1]).
+-export([all/0, sha3_256_oracle/1, state_roundtrip/1, permute_iterations/1]).
 
-all() -> [sha3_256_oracle, state_roundtrip].
+all() -> [sha3_256_oracle, state_roundtrip, permute_iterations].
 
 %% SHA3-256: rate=136 bytes, capacity=64 bytes, domain byte 0x06, pad10*1.
 sha3_256(Msg) ->
@@ -44,7 +44,7 @@ absorb(State, Bin, Rate) ->
     <<Block:Rate/binary, Rest/binary>> = Bin,
     Pad = (200 - Rate) * 8,
     XorBlock = crypto:exor(State, <<Block/binary, 0:Pad>>),
-    absorb(udr_crypto_keccak:f1600(XorBlock), Rest, Rate).
+    absorb(udr_crypto_keccak:permute(XorBlock), Rest, Rate).
 
 sha3_256_oracle(_Config) ->
     Cases = [<<>>, <<"abc">>, <<"The quick brown fox jumps over the lazy dog">>,
@@ -55,8 +55,19 @@ sha3_256_oracle(_Config) ->
 
 state_roundtrip(_Config) ->
     In = crypto:strong_rand_bytes(200),
-    Out = udr_crypto_keccak:f1600(In),
+    Out = udr_crypto_keccak:permute(In),
     ?assertEqual(200, byte_size(Out)),
-    ?assertEqual(Out, udr_crypto_keccak:f1600(In)),
+    ?assertEqual(Out, udr_crypto_keccak:permute(In)),
     ?assertNotEqual(In, Out),
+    ok.
+
+%% permute/2 applies the permutation N times; check it against manual composition.
+permute_iterations(_Config) ->
+    In = crypto:strong_rand_bytes(200),
+    ?assertEqual(udr_crypto_keccak:permute(In), udr_crypto_keccak:permute(In, 1)),
+    ?assertEqual(udr_crypto_keccak:permute(udr_crypto_keccak:permute(In)),
+                 udr_crypto_keccak:permute(In, 2)),
+    ?assertEqual(udr_crypto_keccak:permute(udr_crypto_keccak:permute(
+                     udr_crypto_keccak:permute(In))),
+                 udr_crypto_keccak:permute(In, 3)),
     ok.

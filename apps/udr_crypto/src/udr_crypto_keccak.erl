@@ -18,7 +18,7 @@
 -module(udr_crypto_keccak).
 -moduledoc "Keccak-f[1600] permutation (FIPS 202 / TS 35.231 primitive).".
 
--export([f1600/1]).
+-export([permute/1, permute/2]).
 
 -define(MASK64, 16#FFFFFFFFFFFFFFFF).
 -define(NROUNDS, 24).
@@ -33,12 +33,17 @@
 %% Rho rotation offsets in lane-index (x+5y) order.
 -define(RHO, {0,1,62,28,27, 36,44,6,55,20, 3,10,43,25,39, 41,45,15,21,8, 18,2,61,56,14}).
 
--doc "Apply Keccak-f[1600] to a 200-byte (1600-bit) state. Returns 200 bytes.".
--spec f1600(binary()) -> binary().
-f1600(Bin) when byte_size(Bin) =:= 200 ->
+-doc "Apply Keccak-f[1600] once to a 200-byte (1600-bit) state. Returns 200 bytes.".
+-spec permute(binary()) -> binary().
+permute(Bin) when byte_size(Bin) =:= 200 ->
     Lanes = [ L || <<L:64/little>> <= Bin ],
     Out = rounds(list_to_tuple(Lanes), 0),
     << <<L:64/little>> || L <- tuple_to_list(Out) >>.
+
+-doc "Apply Keccak-f[1600] N times in succession (TUAK's iteration parameter).".
+-spec permute(binary(), pos_integer()) -> binary().
+permute(Bin, 1) -> permute(Bin);
+permute(Bin, N) when is_integer(N), N > 1 -> permute(permute(Bin), N - 1).
 
 rounds(A, ?NROUNDS) -> A;
 rounds(A, R) -> rounds(iota(chi(rho_pi(theta(A))), R), R + 1).
