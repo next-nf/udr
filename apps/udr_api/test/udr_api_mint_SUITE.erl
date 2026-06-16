@@ -22,17 +22,20 @@
          op_not_configured/1, op_misconfigured/1, minted_creds_authenticate/1,
          honors_amf_override/1, passes_through_profile/1,
          preserves_existing_profile/1, rejects_invalid_identity/1,
-         rejects_missing_keys/1, rejects_invalid_amf/1, amf_not_configured/1]).
+         rejects_missing_keys/1, rejects_invalid_amf/1, amf_not_configured/1,
+         mints_tuak/1, tuak_top_not_configured/1, rejects_unsupported_algorithm/1]).
 
-%% Fixed non-zero test OP (16 bytes).
+%% Fixed non-zero test OP (16 bytes) and TOP (32 bytes, TUAK).
 -define(OP, binary:decode_hex(<<"000102030405060708090a0b0c0d0e0f">>)).
+-define(TOP, binary:decode_hex(<<"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f">>)).
 
 all() ->
     [stores_identity, opc_matches_derivation, rejects_double_provision,
      op_not_configured, op_misconfigured, minted_creds_authenticate,
      honors_amf_override, passes_through_profile,
      preserves_existing_profile, rejects_invalid_identity,
-     rejects_missing_keys, rejects_invalid_amf, amf_not_configured].
+     rejects_missing_keys, rejects_invalid_amf, amf_not_configured,
+     mints_tuak, tuak_top_not_configured, rejects_unsupported_algorithm].
 
 %% Single source of truth for each case's IMSI. The udr_db ETS store is a
 %% node-wide table shared by every suite in a `rebar3 ct` run; cross-suite
@@ -54,11 +57,15 @@ imsi(preserves_existing_profile)-> <<"001010000000018">>;
 imsi(rejects_invalid_identity)  -> <<"001010000000019">>;
 imsi(rejects_missing_keys)      -> <<"001010000000020">>;
 imsi(rejects_invalid_amf)       -> <<"001010000000021">>;
-imsi(amf_not_configured)        -> <<"001010000000022">>.
+imsi(amf_not_configured)        -> <<"001010000000022">>;
+imsi(mints_tuak)                -> <<"001010000000023">>;
+imsi(tuak_top_not_configured)   -> <<"001010000000024">>;
+imsi(rejects_unsupported_algorithm) -> <<"001010000000025">>.
 
 init_per_testcase(TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
     application:set_env(udr_api, op, ?OP),
+    application:set_env(udr_api, top, ?TOP),
     application:set_env(udr_api, default_amf, binary:decode_hex(<<"b9b9">>)),
     %% Start the data/crypto/cluster closure plus the HSS engine. We deliberately
     %% do not start the udr_api application itself: udr_api_mint is a library
@@ -190,6 +197,51 @@ preserves_existing_profile(Config) ->
     ?assertEqual(#{<<"a">> => 1}, maps:get(<<"apn_config_profile">>, Sub)),
     ?assertEqual(<<"49170">>, maps:get(<<"msisdn">>, Sub)),
     ?assertEqual(<<"8988001000000000018">>, maps:get(<<"iccid">>, Sub)),
+    ok.
+
+%% Minting a TUAK subscriber: 128-bit Ki, TOPc derived from the 32-byte TOP, and
+%% the minted credentials produce valid EPS vectors over AIR.
+mints_tuak(Config) ->
+    Imsi = ?config(imsi, Config),
+    {ok, _} = udr_api_mint:provision(#{imsi      => Imsi,
+                                       msisdn    => <<"49170">>,
+                                       iccid     => <<"8988001000000000023">>,
+                                       algorithm => <<"tuak">>}),
+    {ok, Auth} = udr_data:get_authentication_subscription(Imsi),
+    Ki  = maps:get(<<"ki">>, Auth),
+    OPc = maps:get(<<"opc">>, Auth),
+    ?assertEqual(<<"tuak">>, maps:get(<<"algorithm">>, Auth)),
+    ?assertEqual(16, byte_size(Ki)),
+    ?assertEqual(32, byte_size(OPc)),
+    ?assertEqual(udr_crypto:opc(tuak, Ki, ?TOP), OPc),
+    %% Minted creds authenticate end-to-end.
+    {ok, Ans, []} = udr_hss:handle_air(#{imsi         => Imsi,
+                                         visited_plmn => binary:decode_hex(<<"00f110">>),
+                                         num_vectors  => 1}),
+    [V] = maps:get(vectors, Ans),
+    ?assertEqual(16, byte_size(maps:get(autn, V))),
+    ?assertEqual(8,  byte_size(maps:get(xres, V))),
+    ?assertEqual(32, byte_size(maps:get(kasme, V))),
+    ok.
+
+%% TUAK requested but no operator TOP configured -> fail closed.
+tuak_top_not_configured(Config) ->
+    Imsi = ?config(imsi, Config),
+    application:unset_env(udr_api, top),
+    ?assertEqual({error, top_not_configured},
+                 udr_api_mint:provision(#{imsi      => Imsi,
+                                          msisdn    => <<"49170">>,
+                                          iccid     => <<"8988001000000000024">>,
+                                          algorithm => <<"tuak">>})),
+    ok.
+
+rejects_unsupported_algorithm(Config) ->
+    Imsi = ?config(imsi, Config),
+    ?assertEqual({error, unsupported_algorithm},
+                 udr_api_mint:provision(#{imsi      => Imsi,
+                                          msisdn    => <<"49170">>,
+                                          iccid     => <<"8988001000000000025">>,
+                                          algorithm => <<"xtea">>})),
     ok.
 
 rejects_invalid_identity(_Config) ->

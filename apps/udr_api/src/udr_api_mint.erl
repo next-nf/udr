@@ -28,10 +28,11 @@
 -export([provision/1]).
 
 -type req() :: #{imsi := binary(), msisdn := binary(), iccid := binary(),
-                 amf => binary(), profile => map()}.
+                 algorithm => binary(), amf => binary(), profile => map()}.
 
--type error_reason() :: invalid_request | invalid_identity
+-type error_reason() :: invalid_request | invalid_identity | unsupported_algorithm
                       | op_not_configured | op_misconfigured
+                      | top_not_configured | top_misconfigured
                       | invalid_amf | amf_not_configured | amf_misconfigured
                       | already_provisioned | session_busy
                       | {storage, term()}.
@@ -46,32 +47,37 @@
 -spec provision(req()) ->
     {ok, #{imsi := binary(), iccid := binary()}} | {error, error_reason()}.
 provision(#{imsi := Imsi, msisdn := Msisdn, iccid := Iccid} = Req) ->
+    Algo = maps:get(algorithm, Req, <<"milenage">>),
     case validate_identity(Imsi, Msisdn, Iccid) of
         {error, _} = E ->
             E;
         ok ->
-            case {op(), amf(Req)} of
+            %% operator_secret/1 also rejects an unknown algorithm; resolve it (and the
+            %% AMF) before taking the per-IMSI lock so misconfig fails fast.
+            case {operator_secret(Algo), amf(Req)} of
                 {{error, _} = E, _} -> E;
                 {_, {error, _} = E} -> E;
-                {{ok, OP}, {ok, Amf}} ->
+                {{ok, Secret}, {ok, Amf}} ->
                     udr_cluster:with_session(
-                      Imsi, fun() -> do_provision(Imsi, Msisdn, Iccid, OP, Amf, Req) end)
+                      Imsi, fun() -> do_provision(Imsi, Msisdn, Iccid, Algo, Secret, Amf, Req) end)
             end
     end;
 provision(_) ->
     {error, invalid_request}.
 
--spec do_provision(binary(), binary(), binary(), binary(), binary(), req()) ->
+-spec do_provision(binary(), binary(), binary(), binary(), binary(), binary(), req()) ->
     {ok, #{imsi := binary(), iccid := binary()}}
     | {error, already_provisioned | {storage, term()}}.
-do_provision(Imsi, Msisdn, Iccid, OP, Amf, Req) ->
+do_provision(Imsi, Msisdn, Iccid, Algo, Secret, Amf, Req) ->
     case udr_data:get_authentication_subscription(Imsi) of
         {ok, _Existing} ->
             {error, already_provisioned};
         {error, not_found} ->
+            %% 128-bit Ki for both algorithms; for TUAK, Secret is the 256-bit TOP and
+            %% udr_crypto:opc/3 derives the 256-bit TOPc, stored in the opc field.
             Ki   = crypto:strong_rand_bytes(16),
-            OPc  = udr_crypto:opc(milenage, Ki, OP),
-            Auth = udr_api_subscriber:auth_record(Ki, OPc, <<"milenage">>, Amf, 0),
+            OPc  = udr_crypto:opc(udr_api_subscriber:algo(Algo), Ki, Secret),
+            Auth = udr_api_subscriber:auth_record(Ki, OPc, Algo, Amf, 0),
             Profile = profile(Imsi, Msisdn, Iccid, Req),
             %% auth_subscription is the commit marker the guard above keys on, so
             %% write the profile first and the credentials last. A mint interrupted
@@ -102,6 +108,15 @@ profile(Imsi, Msisdn, Iccid, Req) ->
     maps:merge(maps:merge(Existing, Caller),
                #{<<"msisdn">> => Msisdn, <<"iccid">> => Iccid}).
 
+%% Resolve the operator secret for the requested algorithm: MILENAGE uses the
+%% 16-byte OP, TUAK the 32-byte TOP. An unknown algorithm fails closed.
+-spec operator_secret(binary()) ->
+    {ok, binary()} | {error, unsupported_algorithm | op_not_configured | op_misconfigured
+                            | top_not_configured | top_misconfigured}.
+operator_secret(<<"milenage">>) -> op();
+operator_secret(<<"tuak">>)     -> top();
+operator_secret(_)              -> {error, unsupported_algorithm}.
+
 %% Read the operator-wide OP from config. Must be a 16-byte binary.
 -spec op() -> {ok, binary()} | {error, op_not_configured | op_misconfigured}.
 op() ->
@@ -109,6 +124,15 @@ op() ->
         {ok, OP} when is_binary(OP), byte_size(OP) =:= 16 -> {ok, OP};
         {ok, _}                                           -> {error, op_misconfigured};
         undefined                                         -> {error, op_not_configured}
+    end.
+
+%% Read the operator-wide TOP (TUAK) from config. Must be a 32-byte binary.
+-spec top() -> {ok, binary()} | {error, top_not_configured | top_misconfigured}.
+top() ->
+    case application:get_env(udr_api, top) of
+        {ok, TOP} when is_binary(TOP), byte_size(TOP) =:= 32 -> {ok, TOP};
+        {ok, _}                                              -> {error, top_misconfigured};
+        undefined                                            -> {error, top_not_configured}
     end.
 
 %% AMF for this mint. A per-call `amf` (validated to 2 bytes) wins; otherwise the

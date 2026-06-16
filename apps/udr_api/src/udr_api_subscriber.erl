@@ -17,7 +17,7 @@
 -module(udr_api_subscriber).
 -moduledoc "Pure conversion between the provisioning JSON shape (hex strings) and the\n"
            "udr_data storage maps (binaries). OP->OPc is derived here at provisioning.".
--export([auth_from_json/1, auth_record/5, profile_from_json/1, to_view/2]).
+-export([auth_from_json/1, auth_record/5, profile_from_json/1, to_view/2, algo/1]).
 
 -doc "Convert the JSON `auth` object to the udr_data auth_subscription map.\n"
      "Hex fields -> binaries; derives OPc from OP if `opc` is absent; throws `badarg`\n"
