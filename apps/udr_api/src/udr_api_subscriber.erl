@@ -29,6 +29,7 @@ auth_from_json(#{<<"ki">> := KiHex, <<"amf">> := AmfHex} = J) ->
     Amf  = hex(AmfHex),
     Sqn  = maps:get(<<"sqn">>, J, 0),
     OPc  = opc(J, Algo, Ki),
+    ok   = validate_lengths(Algo, Ki, OPc),
     auth_record(Ki, OPc, Algo, Amf, Sqn).
 
 -doc "Assemble the canonical auth_subscription storage map. Single owner of the\n"
@@ -65,7 +66,18 @@ opc(J, Algo, Ki) ->
 
 -spec algo(binary()) -> udr_crypto:algo().
 %% Unknown algorithm -> function_clause (caught by the handler -> 400).
-algo(<<"milenage">>) -> milenage.
+algo(<<"milenage">>) -> milenage;
+algo(<<"tuak">>)     -> tuak.
+
+%% Per-algorithm key-material length check. MILENAGE: K and OPc are 16 bytes.
+%% TUAK: K is 16 or 32 bytes, TOPc (stored in opc) is 32 bytes. A bad length throws
+%% badarg, which the handler maps to 400 (same path as a missing op/opc).
+-spec validate_lengths(binary(), binary(), binary()) -> ok.
+validate_lengths(<<"milenage">>, K, OPc)
+  when byte_size(K) =:= 16, byte_size(OPc) =:= 16 -> ok;
+validate_lengths(<<"tuak">>, K, OPc)
+  when (byte_size(K) =:= 16 orelse byte_size(K) =:= 32), byte_size(OPc) =:= 32 -> ok;
+validate_lengths(_, _, _) -> erlang:error(badarg).
 
 -spec hex(binary()) -> binary().
 hex(H) -> binary:decode_hex(H).

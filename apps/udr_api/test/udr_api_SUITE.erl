@@ -22,11 +22,13 @@
 
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([auth_from_json_opc/1, auth_from_json_derives_opc_from_op/1,
+         auth_from_json_tuak/1, auth_from_json_tuak_256k/1, auth_from_json_tuak_bad_opc/1,
          listener_up/1, put_creates_subscriber/1, put_without_op_or_opc_400/1,
          put_malformed_json_400/1, get_delete_subscriber/1, get_unknown_404/1]).
 
 all() ->
     [auth_from_json_opc, auth_from_json_derives_opc_from_op,
+     auth_from_json_tuak, auth_from_json_tuak_256k, auth_from_json_tuak_bad_opc,
      listener_up, put_creates_subscriber, put_without_op_or_opc_400,
      put_malformed_json_400, get_delete_subscriber, get_unknown_404].
 
@@ -77,6 +79,34 @@ auth_from_json_derives_opc_from_op(_Config) ->
     M = udr_api_subscriber:auth_from_json(J),
     ?assertEqual(binary:decode_hex(<<"cd63cb71954a9f4e48a5994e37a02baf">>), maps:get(<<"opc">>, M)),
     ?assertEqual(0, maps:get(<<"sqn">>, M)),
+    ok.
+
+%% TUAK: K may be 16 or 32 bytes; opc holds the 32-byte TOPc.
+auth_from_json_tuak(_Config) ->
+    J = #{<<"ki">> => <<"abababababababababababababababab">>,
+          <<"opc">> => <<"bd04d9530e87513c5d837ac2ad954623a8e2330c115305a73eb45d1f40cccbff">>,
+          <<"algorithm">> => <<"tuak">>, <<"amf">> => <<"ffff">>, <<"sqn">> => 0},
+    M = udr_api_subscriber:auth_from_json(J),
+    ?assertEqual(<<"tuak">>, maps:get(<<"algorithm">>, M)),
+    ?assertEqual(16, byte_size(maps:get(<<"ki">>, M))),
+    ?assertEqual(32, byte_size(maps:get(<<"opc">>, M))),
+    ok.
+
+auth_from_json_tuak_256k(_Config) ->
+    J = #{<<"ki">> => <<"1574ca56881d05c189c82880f789c9cd4244955f4426aa2b69c29f15770e5aa5">>,
+          <<"opc">> => <<"3c6052e41532a28a47aa3cbb89f223e8f3aaa976aecd48bc3e7d6165a55eff62">>,
+          <<"algorithm">> => <<"tuak">>, <<"amf">> => <<"297d">>, <<"sqn">> => 0},
+    M = udr_api_subscriber:auth_from_json(J),
+    ?assertEqual(32, byte_size(maps:get(<<"ki">>, M))),
+    ?assertEqual(32, byte_size(maps:get(<<"opc">>, M))),
+    ok.
+
+auth_from_json_tuak_bad_opc(_Config) ->
+    %% TUAK requires a 32-byte TOPc; a 16-byte opc must be rejected (badarg -> 400).
+    J = #{<<"ki">> => <<"abababababababababababababababab">>,
+          <<"opc">> => <<"cd63cb71954a9f4e48a5994e37a02baf">>,
+          <<"algorithm">> => <<"tuak">>, <<"amf">> => <<"ffff">>, <<"sqn">> => 0},
+    ?assertError(badarg, udr_api_subscriber:auth_from_json(J)),
     ok.
 
 %% --- HTTP listener tests ---
