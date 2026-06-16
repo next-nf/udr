@@ -19,11 +19,11 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0]).
--export([resync_roundtrip/1]).
+-export([resync_roundtrip/1, resync_roundtrip_tuak/1]).
 
 b(N) -> proper_types:binary(N).
 
-all() -> [resync_roundtrip].
+all() -> [resync_roundtrip, resync_roundtrip_tuak].
 
 prop_resync_roundtrip() ->
     ?FORALL({K, OPc, RAND, SqnMs},
@@ -38,4 +38,20 @@ prop_resync_roundtrip() ->
 
 resync_roundtrip(_Config) ->
     ?assert(proper:quickcheck(prop_resync_roundtrip(), [{numtests, 200}, quiet])),
+    ok.
+
+%% TUAK: K is 16 or 32 bytes, TOPc is 32 bytes. Build AUTS with f5*/f1* and verify.
+prop_resync_roundtrip_tuak() ->
+    ?FORALL({K, TOPc, RAND, SqnMs},
+            {proper_types:oneof([b(16), b(32)]), b(32), b(16), b(6)},
+            begin
+                AkStar = udr_crypto_tuak:f5star(K, TOPc, RAND),
+                Conc   = crypto:exor(SqnMs, AkStar),
+                MacS   = udr_crypto_tuak:f1star(K, TOPc, RAND, SqnMs, <<0:16>>),
+                AUTS   = <<Conc/binary, MacS/binary>>,
+                {ok, SqnMs} =:= udr_crypto:verify_resync(tuak, K, TOPc, RAND, AUTS)
+            end).
+
+resync_roundtrip_tuak(_Config) ->
+    ?assert(proper:quickcheck(prop_resync_roundtrip_tuak(), [{numtests, 200}, quiet])),
     ok.
