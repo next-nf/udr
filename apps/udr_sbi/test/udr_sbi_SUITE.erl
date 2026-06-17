@@ -30,7 +30,9 @@ all() ->
      registration_write, registration_write_bad_json].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:load(udr_sbi),
     application:set_env(udr_sbi, port, ?PORT),
     {ok, Started} = application:ensure_all_started(udr_sbi),
@@ -40,6 +42,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 url(Path) -> "http://127.0.0.1:" ++ integer_to_list(?PORT) ++ Path.

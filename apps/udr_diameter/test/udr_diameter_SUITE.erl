@@ -29,7 +29,9 @@ all() -> [air, ulr_then_clr, pur, nor, idr, dsr, rsr,
           common_dictionary_is_rfc6733, decode_errors_answer_not_crash].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     {ok, _} = application:ensure_all_started(udr_hss),
     Imsi = <<"001010000000001">>,
     ok = udr_data:put_authentication_subscription(Imsi, #{
@@ -51,6 +53,7 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     _ = udr_diameter_test_mme:stop(),
     _ = application:stop(udr_diameter),
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 air(Config) ->

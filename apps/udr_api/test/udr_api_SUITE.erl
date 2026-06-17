@@ -37,7 +37,9 @@ init_per_suite(Config) ->
     %% {env, ...} defaults (application:load reads those at load time).
     _ = application:load(udr_db),
     _ = application:load(udr_api),
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:set_env(udr_api, port, ?PORT),
     {ok, Started} = application:ensure_all_started(udr_api),
     {ok, _} = application:ensure_all_started(inets),
@@ -46,6 +48,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 url(Path) -> "http://127.0.0.1:" ++ integer_to_list(?PORT) ++ Path.

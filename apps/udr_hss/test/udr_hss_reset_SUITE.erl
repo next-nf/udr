@@ -17,7 +17,8 @@
 -module(udr_hss_reset_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1,
+         init_per_testcase/2, end_per_testcase/2]).
 -export([reset_fans_out_to_distinct_nodes/1,
          reset_dedups_same_node/1,
          reset_excludes_purged/1]).
@@ -27,8 +28,17 @@ all() ->
      reset_dedups_same_node,
      reset_excludes_purged].
 
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    Config.
+
+end_per_suite(_Config) ->
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
 init_per_testcase(_TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
     {ok, Started} = application:ensure_all_started(udr_hss),
     %% Reset is a global procedure (it enumerates ALL registrations). Clear this
     %% suite's IMSIs up front so cases do not leak registrations into one another

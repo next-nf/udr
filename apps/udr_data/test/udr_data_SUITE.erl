@@ -17,7 +17,8 @@
 -module(udr_data_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1,
+         init_per_testcase/2, end_per_testcase/2]).
 -export([put_then_get/1, get_unknown_imsi/1,
          advance_sqn_reserves_block/1, advance_sqn_unknown_imsi/1,
          repair_sqn_sets_stored/1, repair_sqn_unknown_imsi/1, concurrent_advance_sqn/1,
@@ -35,13 +36,27 @@ all() ->
      get_subscription_data, get_subscription_data_unknown_imsi,
      delete_authentication_subscription, delete_subscription_data].
 
-init_per_testcase(_TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
-    {ok, Pid} = udr_db_ets:start_link(),
-    [{pid, Pid} | Config].
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    {ok, _Pid} = udr_db_mnesia:start_link(#{}),
+    ok = udr_data:ensure_collections(),
+    Config.
 
-end_per_testcase(_TestCase, Config) ->
-    gen_server:stop(?config(pid, Config)),
+end_per_suite(_Config) ->
+    catch gen_server:stop(udr_db_mnesia),
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
+init_per_testcase(_TestCase, Config) ->
+    %% Clear collections between test cases.
+    mnesia:clear_table(auth_subscription),
+    mnesia:clear_table(subscription_data),
+    mnesia:clear_table(access_registration),
+    Config.
+
+end_per_testcase(_TestCase, _Config) ->
     ok.
 
 %% auth_subscription
@@ -53,6 +68,7 @@ put_then_get(_Config) ->
     {ok, Got} = udr_data:get_authentication_subscription(<<"imsi1">>),
     ?assertEqual(<<"k">>, maps:get(<<"ki">>, Got)),
     ?assertEqual(<<"milenage">>, maps:get(<<"algorithm">>, Got)),
+    %% version is metadata — never in the returned doc
     ?assertEqual(error, maps:find(<<"version">>, Got)),
     ok.
 

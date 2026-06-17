@@ -18,7 +18,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("udr_hss_test.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([air_valid_auts_repairs_sqn/1]).
 
 -define(KI,  binary:decode_hex(<<"465b5ce8b199b49faa5f0a2ee238a6bc">>)).
@@ -26,8 +26,17 @@
 
 all() -> [air_valid_auts_repairs_sqn].
 
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    Config.
+
+end_per_suite(_Config) ->
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
 init_per_testcase(_TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
     {ok, Started} = application:ensure_all_started(udr_hss),
     [{started, Started} | Config].
 

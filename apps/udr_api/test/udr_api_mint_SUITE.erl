@@ -17,7 +17,8 @@
 -module(udr_api_mint_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1,
+         init_per_testcase/2, end_per_testcase/2]).
 -export([stores_identity/1, opc_matches_derivation/1, rejects_double_provision/1,
          op_not_configured/1, op_misconfigured/1, minted_creds_authenticate/1,
          honors_amf_override/1, passes_through_profile/1,
@@ -62,8 +63,17 @@ imsi(mints_tuak)                -> <<"001010000000023">>;
 imsi(tuak_top_not_configured)   -> <<"001010000000024">>;
 imsi(rejects_unsupported_algorithm) -> <<"001010000000025">>.
 
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    Config.
+
+end_per_suite(_Config) ->
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
 init_per_testcase(TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
     application:set_env(udr_api, op, ?OP),
     application:set_env(udr_api, top, ?TOP),
     application:set_env(udr_api, default_amf, binary:decode_hex(<<"b9b9">>)),

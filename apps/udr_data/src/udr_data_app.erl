@@ -14,21 +14,21 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
-{application, udr_db, [
-    {description, "Pluggable generic document store for the HSS/UDR"},
-    {vsn, "0.1.0"},
-    {registered, [udr_db_sup, udr_db_mnesia]},
-    {mod, {udr_db_app, []}},
-    {applications, [
-        kernel,
-        stdlib,
-        mnesia
-    ]},
-    {env, [
-        {backend, udr_db_mnesia},
-        {backend_opts, #{storage => ram_copies}}
-    ]},
-    {modules, []},
-    {licenses, ["AGPL-3.0-or-later"]},
-    {links, []}
-]}.
+-module(udr_data_app).
+-moduledoc "Application callback for `udr_data`. Declares all collections at startup\n"
+           "so they exist before any caller performs a read or write.".
+-behaviour(application).
+
+-export([start/2, stop/1]).
+
+-spec start(application:start_type(), term()) -> {ok, pid()}.
+start(_StartType, _StartArgs) ->
+    ok = udr_data:ensure_collections(),
+    %% udr_data has no supervisor of its own; return a placeholder pid.
+    %% The application framework requires {ok, Pid} so we return a simple
+    %% dummy supervisor with no children.
+    udr_data_sup:start_link().
+
+-spec stop(term()) -> ok.
+stop(_State) ->
+    ok.

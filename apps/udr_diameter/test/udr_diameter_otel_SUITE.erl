@@ -25,7 +25,9 @@
 all() -> [air_span].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:set_env(opentelemetry, span_processor, simple),
     application:set_env(opentelemetry, traces_exporter, {udr_otel_pid_exporter, #{}}),
     application:set_env(opentelemetry_experimental, readers,
@@ -37,6 +39,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 caps() ->

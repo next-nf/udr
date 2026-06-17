@@ -25,7 +25,9 @@
 all() -> [sbi_register_visible_to_data_layer].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:load(udr_sbi),
     application:set_env(udr_sbi, port, ?PORT),
     {ok, S1} = application:ensure_all_started(udr_data),
@@ -36,6 +38,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 %% a registration PUT via the SBI is what the S6a/data layer reads back

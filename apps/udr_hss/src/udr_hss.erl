@@ -256,7 +256,7 @@ maybe_resync(_Imsi, _Req, _Algo, _K, _OPc) ->
 
 %% --- helpers ---
 in_session(Imsi, Fun) ->
-    udr_cluster:with_session(Imsi, Fun).
+    udr_cluster:with_entity(udr_session, Imsi, Fun).
 
 algo(<<"milenage">>) -> {ok, milenage};
 algo(<<"tuak">>)     -> {ok, tuak};

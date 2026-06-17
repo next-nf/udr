@@ -18,7 +18,8 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("udr_hss_test.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1,
+         init_per_testcase/2, end_per_testcase/2]).
 -export([first_ulr_returns_profile_registers_mme_no_clr/1,
          ulr_new_mme_emits_cancel_location/1,
          ulr_unknown_subscriber_returns_user_unknown/1,
@@ -40,8 +41,17 @@ all() ->
      ulr_skip_subscriber_data_omits_profile,
      ulr_after_purge_suppresses_clr].
 
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    Config.
+
+end_per_suite(_Config) ->
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
 init_per_testcase(_TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
     {ok, Started} = application:ensure_all_started(udr_hss),
     [{started, Started} | Config].
 

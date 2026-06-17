@@ -15,35 +15,19 @@
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -module(udr_db_flush_SUITE).
+-moduledoc "Placeholder suite: the `flush/0` operation has been removed from the\n"
+           "`udr_db` contract (database.md §2.3). Backends are cleared in tests by\n"
+           "calling `mnesia:clear_table/1` directly.".
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
--export([flush_empties_store/1, flush_denied_when_not_allowed/1]).
+-export([all/0]).
+-export([flush_removed/1]).
 
-all() -> [flush_empties_store, flush_denied_when_not_allowed].
+all() -> [flush_removed].
 
-init_per_testcase(_TC, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
-    {ok, Started} = application:ensure_all_started(udr_db),
-    [{started, Started} | Config].
-
-end_per_testcase(_TC, Config) ->
-    [application:stop(A) || A <- lists:reverse(?config(started, Config))],
-    ok.
-
-flush_empties_store(_Config) ->
-    application:set_env(udr_db, allow_flush, true),
-    ok = udr_db:put(auth_subscription, <<"k1">>, #{<<"x">> => 1}),
-    ok = udr_db:put(subscription_data, <<"k2">>, #{<<"y">> => 2}),
-    ?assertMatch({ok, _}, udr_db:get(auth_subscription, <<"k1">>)),
-    ok = udr_db:flush(),
-    ?assertEqual({error, not_found}, udr_db:get(auth_subscription, <<"k1">>)),
-    ?assertEqual({error, not_found}, udr_db:get(subscription_data, <<"k2">>)),
-    ok.
-
-flush_denied_when_not_allowed(_Config) ->
-    application:set_env(udr_db, allow_flush, false),
-    ok = udr_db:put(auth_subscription, <<"k3">>, #{<<"z">> => 3}),
-    ?assertEqual({error, flush_not_allowed}, udr_db:flush()),
-    ?assertMatch({ok, _}, udr_db:get(auth_subscription, <<"k3">>)),
+flush_removed(_Config) ->
+    %% flush/0 has been removed from the udr_db contract. Verify the function
+    %% is not exported (it was removed in the ETS->Mnesia cutover).
+    Exports = udr_db:module_info(exports),
+    ?assertEqual(false, lists:keymember(flush, 1, Exports)),
     ok.

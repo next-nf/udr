@@ -17,7 +17,8 @@
 {application, udr_data, [
     {description, "Nudr-shaped data-access seam (HSS<->UDR) over udr_db"},
     {vsn, "0.1.0"},
-    {registered, []},
+    {registered, [udr_data_sup]},
+    {mod, {udr_data_app, []}},
     {applications, [
         kernel,
         stdlib,

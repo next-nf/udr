@@ -41,7 +41,7 @@ init_per_suite(Config) ->
         {ok, #{host := Host, port := Port}} ->
             %% Load udr_db FIRST so our backend override survives: setting
             %% env before the app is loaded would be reset to the .app
-            %% default (udr_db_ets) when ensure_all_started loads it.
+            %% default (udr_db_mnesia) when ensure_all_started loads it.
             _ = application:load(udr_db),
             application:set_env(udr_db, backend, udr_db_mongo),
             application:set_env(udr_db, backend_opts,
