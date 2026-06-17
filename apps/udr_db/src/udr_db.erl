@@ -23,7 +23,7 @@
 
 -export([backend/0, get/2, put/3, delete/2, find/2,
          ensure_collection/2, cas_put/4, take/2, find_by/3, fold/4, count/2,
-         update/3, create/3, ready/0]).
+         update/3, create/3, ready/0, await_ready/1]).
 
 -define(PT_KEY, {udr_db, backend}).
 -define(MAX_RETRIES, 100).
@@ -158,4 +158,20 @@ ready() ->
             end;
         _ ->
             true
+    end.
+
+-doc "Block until the backend is ready, or until `Timeout` milliseconds elapse.\n"
+     "Returns `ok` when ready, `{error, Reason}` on timeout or failure.\n"
+     "For the Mnesia backend, waits for all local tables (minus the schema table)\n"
+     "to be loaded. Intended for use in application `start/2` callbacks: call\n"
+     "after `ensure_collection/2` so listeners are not started until the backend\n"
+     "is fully operational (database.md §6.4).".
+-spec await_ready(Timeout :: timeout()) -> ok | {error, term()}.
+await_ready(Timeout) ->
+    case backend() of
+        udr_db_mnesia ->
+            Tables = mnesia:system_info(local_tables) -- [schema],
+            udr_db_mnesia:wait_ready_timeout(Tables, Timeout);
+        _ ->
+            ok
     end.

@@ -71,7 +71,9 @@ child_spec(Opts) ->
 %%--------------------------------------------------------------------
 
 -doc "Create indexes for the collection (idempotent). Declared indexes are stored\n"
-     "in persistent_term so find_by can validate them at call time.".
+     "in persistent_term so find_by can validate them at call time.\n"
+     "`mc_worker_api:ensure_index/3` requires a `bson:document()` (flat tuple), not a\n"
+     "map — the spec uses `bson:document()` which is `{label(), value(), ...}`.".
 -spec ensure_collection(udr_db_backend:collection(), udr_db_backend:coll_opts()) -> ok.
 ensure_collection(Coll, Opts) ->
     Indexes = maps:get(indexes, Opts, []),
@@ -79,7 +81,9 @@ ensure_collection(Coll, Opts) ->
     Conn = conn(),
     lists:foreach(
         fun(Field) ->
-            IndexSpec = #{<<"key">> => #{Field => 1}, <<"name">> => Field},
+            %% bson:document() is a flat tuple {K1, V1, K2, V2, ...}, not a map.
+            %% The nested key subdocument is also a flat tuple.
+            IndexSpec = {<<"key">>, {Field, 1}, <<"name">>, Field},
             ok = mc_worker_api:ensure_index(Conn, CollBin, IndexSpec)
         end,
         Indexes),
@@ -282,15 +286,14 @@ fold(Coll, Selector, Fun, Acc0) ->
 %% count
 %%--------------------------------------------------------------------
 
--doc "countDocuments equivalent via the count command with a filter selector.".
+-doc "countDocuments equivalent via the count command with a filter selector.\n"
+     "`mc_worker_api:count/3` always returns an `integer()`.".
 -spec count(udr_db_backend:collection(), udr_db_backend:selector()) ->
-    {ok, non_neg_integer()} | {error, term()}.
+    {ok, non_neg_integer()}.
 count(Coll, Selector) ->
     EncodedSel = udr_db_mongo_bson:encode_doc(Selector),
-    case mc_worker_api:count(conn(), coll(Coll), EncodedSel) of
-        N when is_integer(N) -> {ok, N};
-        {error, _} = Err     -> Err
-    end.
+    N = mc_worker_api:count(conn(), coll(Coll), EncodedSel),
+    {ok, N}.
 
 %%--------------------------------------------------------------------
 %% Pure helpers (exported for unit tests)
@@ -327,23 +330,31 @@ version_strip(Doc) ->
 %% Private helpers
 %%--------------------------------------------------------------------
 
-%% Decode a raw Mongo doc map: unwrap BSON binaries, strip _id, extract version.
--spec decode_with_version(map()) -> {udr_db_backend:doc(), udr_db_backend:version()}.
+%% Normalise a raw Mongo doc (either a map or a bson:document() tuple returned
+%% by mc_cursor:rest/1) to a plain map before decoding.
+-spec raw_to_map(map() | tuple()) -> map().
+raw_to_map(Raw) when is_map(Raw)   -> Raw;
+raw_to_map(Raw) when is_tuple(Raw) -> maps:from_list(bson:fields(Raw)).
+
+%% Decode a raw Mongo doc (map or bson tuple): unwrap BSON binaries, strip _id,
+%% extract version.
+-spec decode_with_version(map() | tuple()) -> {udr_db_backend:doc(), udr_db_backend:version()}.
 decode_with_version(Raw) ->
-    Decoded = udr_db_mongo_bson:decode_doc(Raw),
+    Decoded = udr_db_mongo_bson:decode_doc(raw_to_map(Raw)),
     Vsn = maps:get(<<"version">>, Decoded, 0),
     Doc = maps:without([<<"_id">>, <<"version">>], Decoded),
     {Doc, Vsn}.
 
-%% Decode a raw Mongo doc to a user-visible doc (strips _id and version).
--spec doc_from_raw(map()) -> udr_db_backend:doc().
+%% Decode a raw Mongo doc (map or bson tuple) to a user-visible doc (strips _id and version).
+-spec doc_from_raw(map() | tuple()) -> udr_db_backend:doc().
 doc_from_raw(Raw) ->
     element(1, decode_with_version(Raw)).
 
 %% Collect all docs from a cursor into a list.
-%% Normal end-of-cursor sentinels ({} or empty list) return the docs accumulated.
-%% A genuine error sentinel (error atom) is returned as {error, cursor_error}.
--spec collect_cursor(pid()) -> [map()] | {error, cursor_error}.
+%% mc_cursor:rest/1 returns a list of bson:document() tuples (or the atom `error`).
+%% Normal end-of-cursor sentinels ({} or empty list) return the accumulated docs.
+%% A genuine error sentinel (the atom `error`) is returned as {error, cursor_error}.
+-spec collect_cursor(pid()) -> [tuple()] | {error, cursor_error}.
 collect_cursor(Cursor) ->
     case mc_cursor:rest(Cursor) of
         Docs when is_list(Docs) -> Docs;

@@ -83,15 +83,9 @@ do_provision(Imsi, Msisdn, Iccid, Algo, Secret, Amf, Req) ->
             %% write the profile first and the credentials last. A mint interrupted
             %% by a storage error or a crash then leaves auth_subscription absent,
             %% so a retry safely re-runs and completes -- never a stuck half-state.
-            case udr_data:put_subscription_data(Imsi, Profile) of
-                {error, Reason} ->
-                    {error, {storage, Reason}};
-                ok ->
-                    case udr_data:put_authentication_subscription(Imsi, Auth) of
-                        ok              -> {ok, #{imsi => Imsi, iccid => Iccid}};
-                        {error, Reason} -> {error, {storage, Reason}}
-                    end
-            end
+            ok = udr_data:put_subscription_data(Imsi, Profile),
+            ok = udr_data:put_authentication_subscription(Imsi, Auth),
+            {ok, #{imsi => Imsi, iccid => Iccid}}
     end.
 
 %% Build subscription_data non-destructively: identity fields (msisdn/iccid)

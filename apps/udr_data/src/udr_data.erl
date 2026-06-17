@@ -57,12 +57,10 @@ ensure_collections() ->
 %%------------------------------------------------------------------------------
 
 -doc "Store (create or replace) the authentication subscription for an IMSI.".
--spec put_authentication_subscription(imsi(), resource()) -> ok | {error, term()}.
+-spec put_authentication_subscription(imsi(), resource()) -> ok.
 put_authentication_subscription(Imsi, Sub) ->
-    case udr_db:put(?AUTH, Imsi, udr_auth:to_doc(Sub)) of
-        {ok, _V} -> ok;
-        Error    -> Error
-    end.
+    {ok, _V} = udr_db:put(?AUTH, Imsi, udr_auth:to_doc(Sub)),
+    ok.
 
 -doc "Fetch the authentication subscription (Ki/OPc/algorithm/AMF/SQN) for an IMSI.".
 -spec get_authentication_subscription(imsi()) -> {ok, resource()} | {error, not_found}.
@@ -113,12 +111,10 @@ repair_sqn(Imsi, SqnMs) ->
 %%------------------------------------------------------------------------------
 
 -doc "Store (create or replace) the EPS subscription profile for an IMSI.".
--spec put_subscription_data(imsi(), resource()) -> ok | {error, term()}.
+-spec put_subscription_data(imsi(), resource()) -> ok.
 put_subscription_data(Imsi, Profile) ->
-    case udr_db:put(?SUB, Imsi, udr_subscription:to_doc(Profile)) of
-        {ok, _V} -> ok;
-        Error    -> Error
-    end.
+    {ok, _V} = udr_db:put(?SUB, Imsi, udr_subscription:to_doc(Profile)),
+    ok.
 
 -doc "The full EPS subscription profile (AM + SM) for an IMSI, in one read.".
 -spec get_subscription_data(imsi()) -> {ok, resource()} | {error, not_found}.
@@ -162,12 +158,10 @@ get_3gpp_access_registration(Imsi) ->
     end.
 
 -doc "Store (create or replace) the 3GPP access registration for an IMSI.".
--spec put_3gpp_access_registration(imsi(), resource()) -> ok | {error, term()}.
+-spec put_3gpp_access_registration(imsi(), resource()) -> ok.
 put_3gpp_access_registration(Imsi, Reg) ->
-    case udr_db:put(?REG, Imsi, udr_registration:to_doc(Reg)) of
-        {ok, _V} -> ok;
-        Error    -> Error
-    end.
+    {ok, _V} = udr_db:put(?REG, Imsi, udr_registration:to_doc(Reg)),
+    ok.
 
 -doc "Delete (clear) the 3GPP access registration for an IMSI (purge).".
 -spec delete_3gpp_access_registration(imsi()) -> ok.

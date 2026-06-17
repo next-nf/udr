@@ -33,12 +33,8 @@ handle(<<"PUT">>, Imsi, Req0) ->
             #{<<"auth">> := AuthJson} = Body ->
                 Auth    = udr_api_subscriber:auth_from_json(AuthJson),
                 Profile = udr_api_subscriber:profile_from_json(maps:get(<<"profile">>, Body, #{})),
-                case store(Imsi, Auth, Profile) of
-                    ok ->
-                        udr_api_http:reply_json(201, #{<<"imsi">> => Imsi, <<"status">> => <<"provisioned">>}, Req1);
-                    {error, _} ->
-                        udr_api_http:reply_error(500, <<"storage error">>, Req1)
-                end;
+                ok = store(Imsi, Auth, Profile),
+                udr_api_http:reply_json(201, #{<<"imsi">> => Imsi, <<"status">> => <<"provisioned">>}, Req1);
             _ ->
                 udr_api_http:reply_error(400, <<"missing 'auth' object">>, Req1)
         end
@@ -66,10 +62,8 @@ handle(_Method, _Imsi, Req0) ->
     udr_api_http:reply_json(404, #{<<"error">> => <<"not found">>}, Req0).
 
 %% Persist profile then auth; auth_subscription is the record consumers key on,
-%% so writing it last keeps a partial/failed write retry-safe. First error short-circuits.
--spec store(binary(), map(), map()) -> ok | {error, term()}.
+%% so writing it last keeps a partial/failed write retry-safe.
+-spec store(binary(), map(), map()) -> ok.
 store(Imsi, Auth, Profile) ->
-    case udr_data:put_subscription_data(Imsi, Profile) of
-        ok             -> udr_data:put_authentication_subscription(Imsi, Auth);
-        {error, _} = E -> E
-    end.
+    ok = udr_data:put_subscription_data(Imsi, Profile),
+    udr_data:put_authentication_subscription(Imsi, Auth).

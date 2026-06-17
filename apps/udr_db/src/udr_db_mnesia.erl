@@ -29,7 +29,7 @@
 -behaviour(gen_server).
 
 %% Public API
--export([child_spec/1, start_link/1, wait_ready/1]).
+-export([child_spec/1, start_link/1, wait_ready/1, wait_ready_timeout/2]).
 
 %% udr_db_backend callbacks
 -export([ensure_collection/2, get/2, put/3, cas_put/4, delete/2,
@@ -59,13 +59,20 @@ start_link(Opts) ->
      "(database.md §6.4; Task 8 calls this).".
 -spec wait_ready([atom()] | atom()) -> ok | {error, term()}.
 wait_ready(Colls) when is_list(Colls) ->
-    case mnesia:wait_for_tables(Colls, 5000) of
+    wait_ready_timeout(Colls, 5000);
+wait_ready(Coll) when is_atom(Coll) ->
+    wait_ready([Coll]).
+
+-doc "Wait until all listed tables are ready with an explicit timeout.\n"
+     "Returns `ok` when all tables are loaded, `{error, Reason}` on timeout or failure.\n"
+     "Called by `udr_db:await_ready/1` (database.md §6.4).".
+-spec wait_ready_timeout([atom()], timeout()) -> ok | {error, term()}.
+wait_ready_timeout(Colls, Timeout) ->
+    case mnesia:wait_for_tables(Colls, Timeout) of
         ok              -> ok;
         {timeout, Tabs} -> {error, {timeout, Tabs}};
         {error, Reason} -> {error, Reason}
-    end;
-wait_ready(Coll) when is_atom(Coll) ->
-    wait_ready([Coll]).
+    end.
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
