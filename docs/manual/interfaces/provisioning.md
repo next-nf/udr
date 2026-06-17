@@ -1,6 +1,6 @@
 # Interface Reference: Provisioning API (`udr_api`)
 
-**Applies to:** udr 0.1.0 · **Revised:** 2026-06-08
+**Applies to:** udr 0.1.0 · **Revised:** 2026-06-16
 
 ## 1. Scope
 
@@ -13,9 +13,13 @@ The bind address and port are configuration, covered in the [provisioning config
 
 ## 2. Terms
 
-Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), SQN, MILENAGE — are defined in the [glossary](../glossary.md). One name is local to this interface:
+Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), SQN, MILENAGE — are defined in the [glossary](../glossary.md). Two names are local to this interface:
 
 - **auth object** — the JSON object under the `auth` key of a `PUT` body that carries the per-subscriber authentication credentials and parameters.
+- **TUAK** — the SHA-3/Keccak-based 3GPP authentication algorithm set (TS 35.231–233), an alternative to MILENAGE. Its operator constant is the 256-bit **TOP**, from which a 256-bit **TOPc** is derived; these occupy the `op` and `opc` fields respectively.
+
+> [!IMPORTANT]
+> The authentication algorithm is a property of the individual subscriber's USIM, fixed when the card is personalised. It is **not** negotiated at runtime and there is **no fallback** between algorithms: the HSS computes vectors with exactly the algorithm stored for that IMSI. The `algorithm` field `shall` match the algorithm the subscriber's USIM was personalised with; a mismatch makes every authentication for that subscriber fail in the field.
 
 ## 3. Transport and conventions
 
@@ -49,18 +53,18 @@ Terms used below — IMSI, Ki, OPc, OP, AMF (Authentication Management Field), S
   | Field | Location | Required | Type | Meaning |
   | --- | --- | --- | --- | --- |
   | `auth` | top level | yes | object | The authentication object. Its absence returns `400`. |
-  | `auth.ki` | in `auth` | yes | hex string | The subscriber's permanent key [Ki](../glossary.md). Decoded from hex to bytes. |
+  | `auth.ki` | in `auth` | yes | hex string | The subscriber's permanent key [Ki](../glossary.md). Decoded from hex to bytes. For `"milenage"` it `shall` be 16 bytes; for `"tuak"` it `shall` be 16 or 32 bytes. |
   | `auth.amf` | in `auth` | yes | hex string | The [AMF (Authentication Management Field)](../glossary.md). Decoded from hex to bytes. |
-  | `auth.opc` | in `auth` | one of `opc` / `op` | hex string | The [OPc](../glossary.md). Used directly if present. |
-  | `auth.op` | in `auth` | one of `opc` / `op` | hex string | The [OP](../glossary.md). When `opc` is absent, OPc is derived from `op` and `ki` with MILENAGE at provisioning time. |
-  | `auth.algorithm` | in `auth` | no | string | The authentication algorithm. Defaults to `"milenage"`. Only `"milenage"` is accepted; any other value returns `400`. |
+  | `auth.opc` | in `auth` | one of `opc` / `op` | hex string | The operator key derived per subscriber: [OPc](../glossary.md) (16 bytes) for `"milenage"`, or TOPc (32 bytes) for `"tuak"`. Used directly if present. |
+  | `auth.op` | in `auth` | one of `opc` / `op` | hex string | The operator constant: [OP](../glossary.md) (16 bytes) for `"milenage"`, or TOP (32 bytes) for `"tuak"`. When `opc` is absent, the per-subscriber key is derived from `op` and `ki` with the selected algorithm at provisioning time. |
+  | `auth.algorithm` | in `auth` | no | string | The authentication algorithm. Defaults to `"milenage"`. Accepted values are `"milenage"` and `"tuak"`; any other value returns `400`. |
   | `auth.sqn` | in `auth` | no | integer | The initial [SQN](../glossary.md). Defaults to `0`. |
   | `profile` | top level | no | object | The subscription profile, stored as-is. Defaults to an empty object. |
 
 - **Validation** (confirmed in the handler's `try` / `catch` and `auth_from_json/1`):
   - A body that is not a JSON object, or that lacks the `auth` object, returns `400` with `{"error":"missing 'auth' object"}`.
   - An `auth` object that supplies neither `opc` nor `op` returns `400` with `{"error":"auth requires 'opc' or 'op' (and 'ki','amf')"}` (the `badarg` raised in `opc/3`).
-  - An `auth` object that lacks `ki` or `amf`, or supplies an unknown `algorithm`, returns `400` with `{"error":"invalid request body"}` (a `function_clause` or other error caught by the handler).
+  - An `auth` object that lacks `ki` or `amf`, supplies an unknown `algorithm`, or supplies key material of the wrong length for the selected algorithm (MILENAGE: `ki` and `opc` 16 bytes; TUAK: `ki` 16 or 32 bytes, `opc` 32 bytes), returns `400` with `{"error":"invalid request body"}` (a `function_clause` or `badarg` caught by the handler).
 - **Response — success:** `201 Created`, body `{"imsi":"<imsi>","status":"provisioned"}`. The same `201` is returned whether the subscriber was newly created or replaced (the store is create-or-replace; confirmed in `store/3` over `udr_data:put_*`).
 - **Errors:** see §7. A storage failure returns `500`.
 - **Example exchange:**
@@ -139,7 +143,7 @@ Every status code below is returned by `udr_api_subscriber_h.erl`. Bodies are `a
 | `201 Created` | A `PUT` validated and stored the subscriber (created or replaced). | `handle(<<"PUT">>, ...)` |
 | `200 OK` | A `GET` found the subscriber; body is the read view (no secrets). | `handle(<<"GET">>, ...)` |
 | `204 No Content` | A `DELETE` completed (including for an unknown IMSI). | `handle(<<"DELETE">>, ...)` |
-| `400 Bad Request` | A `PUT` body is not a JSON object, lacks `auth`, lacks `ki`/`amf`, supplies neither `opc` nor `op`, or names an unknown `algorithm`. | `handle(<<"PUT">>, ...)` `try`/`catch`; `auth_from_json/1`, `opc/3`, `algo/1` |
+| `400 Bad Request` | A `PUT` body is not a JSON object, lacks `auth`, lacks `ki`/`amf`, supplies neither `opc` nor `op`, names an unknown `algorithm`, or supplies key material of the wrong length for the algorithm. | `handle(<<"PUT">>, ...)` `try`/`catch`; `auth_from_json/1`, `opc/3`, `algo/1`, `validate_lengths/3` |
 | `404 Not Found` | A `GET` found no subscriber for the IMSI; or any method other than `PUT`/`GET`/`DELETE` was used. | `handle(<<"GET">>, ...)`; final `handle/3` clause |
 | `500 Internal Server Error` | A `PUT` failed at the storage layer. | `handle(<<"PUT">>, ...)`, `store/3` |
 
@@ -170,3 +174,13 @@ Every status code below is returned by `udr_api_subscriber_h.erl`. Bodies are `a
 - Confirm secrets are withheld on read: a `GET` of the subscriber just provisioned returns `200` with an `auth` object that contains `algorithm`, `amf`, and `sqn`, and contains no `ki` or `opc`.
 
 - Confirm validation: a `PUT` whose `auth` supplies neither `opc` nor `op` returns `400` with body `{"error":"auth requires 'opc' or 'op' (and 'ki','amf')"}`.
+
+- Confirm a TUAK provision: a `PUT` with `algorithm` `"tuak"`, a 16- or 32-byte `ki`, and a 32-byte `opc` returns `201`. A subsequent `GET` returns `200` with `auth.algorithm` `"tuak"`.
+
+  ```sh
+  curl -s -X PUT -H 'content-type: application/json' \
+    -d '{"auth":{"ki":"abababababababababababababababab","opc":"bd04d9530e87513c5d837ac2ad954623a8e2330c115305a73eb45d1f40cccbff","algorithm":"tuak","amf":"ffff"}}' \
+    http://127.0.0.1:8090/provision/v1/subscribers/001010000000099
+  ```
+
+  The expected status is `201`. A `PUT` with `algorithm` `"tuak"` but a 16-byte `opc` returns `400` (a TUAK TOPc `shall` be 32 bytes).

@@ -46,7 +46,10 @@ mint_req(Imsi, Body) ->
     Base = #{imsi   => Imsi,
              msisdn => maps:get(<<"msisdn">>, Body, undefined),
              iccid  => maps:get(<<"iccid">>, Body, undefined)},
-    with_profile(with_amf(Base, Body), Body).
+    with_profile(with_amf(with_algorithm(Base, Body), Body), Body).
+
+with_algorithm(Base, #{<<"algorithm">> := Algo}) when is_binary(Algo) -> Base#{algorithm => Algo};
+with_algorithm(Base, _)                                               -> Base.
 
 with_amf(Base, #{<<"amf">> := AmfHex}) -> Base#{amf => binary:decode_hex(AmfHex)};
 with_amf(Base, _)                      -> Base.
@@ -69,9 +72,12 @@ respond({error, Reason}, Req) ->
 error_info(invalid_request)     -> {400, <<"missing required fields (msisdn, iccid)">>};
 error_info(invalid_identity)    -> {400, <<"invalid imsi/msisdn/iccid">>};
 error_info(invalid_amf)         -> {400, <<"amf must be 2 bytes (hex)">>};
+error_info(unsupported_algorithm) -> {400, <<"unsupported algorithm (expected milenage or tuak)">>};
 error_info(already_provisioned) -> {409, <<"subscriber already provisioned">>};
 error_info(op_not_configured)   -> {500, <<"operator OP not configured">>};
 error_info(op_misconfigured)    -> {500, <<"operator OP misconfigured">>};
+error_info(top_not_configured)  -> {500, <<"operator TOP (tuak) not configured">>};
+error_info(top_misconfigured)   -> {500, <<"operator TOP (tuak) misconfigured">>};
 error_info(amf_not_configured)  -> {500, <<"default AMF not configured">>};
 error_info(amf_misconfigured)   -> {500, <<"default AMF misconfigured">>};
 error_info({storage, _})        -> {500, <<"storage error">>}.

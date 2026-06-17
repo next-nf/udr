@@ -259,6 +259,7 @@ in_session(Imsi, Fun) ->
     udr_cluster:with_session(Imsi, Fun).
 
 algo(<<"milenage">>) -> {ok, milenage};
+algo(<<"tuak">>)     -> {ok, tuak};
 algo(_)              -> error.
 
 av_to_map(V) ->
