@@ -56,15 +56,20 @@
 %%------------------------------------------------------------------------------
 
 -doc "Convert a stored document to a typed subscription map with defaults.\n"
-     "Older `schema_version` values (or absent) are upgraded in-memory.".
+     "Older `schema_version` values (or absent) are upgraded in-memory.\n"
+     "Known fields are normalised with canonical defaults; unknown fields are\n"
+     "passed through unchanged so callers that store extra data (e.g. `iccid`\n"
+     "from the provisioning API) can read it back without loss.".
 -spec from_doc(doc()) -> subscription_map().
 from_doc(Doc) ->
     Doc1 = upgrade(Doc),
-    #{ ?F_SCHEMA_VERSION     => ?SCHEMA_VERSION,
-       ?F_MSISDN             => maps:get(?F_MSISDN,            Doc1, <<>>),
-       ?F_SUBSCRIBER_STATUS  => maps:get(?F_SUBSCRIBER_STATUS, Doc1, <<"SERVICE_GRANTED">>),
-       ?F_AMBR               => maps:get(?F_AMBR,              Doc1, #{}),
-       ?F_APN_CONFIG_PROFILE => maps:get(?F_APN_CONFIG_PROFILE, Doc1, #{}) }.
+    %% Start from the (possibly upgraded) doc to preserve unknown fields, then
+    %% overlay the canonical schema fields with their defaults.
+    Doc1#{ ?F_SCHEMA_VERSION     => ?SCHEMA_VERSION,
+           ?F_MSISDN             => maps:get(?F_MSISDN,            Doc1, <<>>),
+           ?F_SUBSCRIBER_STATUS  => maps:get(?F_SUBSCRIBER_STATUS, Doc1, <<"SERVICE_GRANTED">>),
+           ?F_AMBR               => maps:get(?F_AMBR,              Doc1, #{}),
+           ?F_APN_CONFIG_PROFILE => maps:get(?F_APN_CONFIG_PROFILE, Doc1, #{}) }.
 
 -doc "Convert a typed subscription map to a stored document, stamping `schema_version => 1`.".
 -spec to_doc(subscription_map()) -> doc().

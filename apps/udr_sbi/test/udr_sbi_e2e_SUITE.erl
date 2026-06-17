@@ -31,9 +31,16 @@ init_per_suite(Config) ->
     application:load(udr_sbi),
     application:set_env(udr_sbi, port, ?PORT),
     {ok, S1} = application:ensure_all_started(udr_data),
-    {ok, S2} = application:ensure_all_started(udr_sbi),
+    %% udr_sbi calls opentelemetry_cowboy_experimental_h:init/0 on start, which
+    %% registers histograms on the global meter provider (otel_meter_provider_global).
+    %% In a full `rebar3 ct` run the OTEL SDK may have been started and stopped by a
+    %% prior suite (e.g. udr_otel_SUITE), leaving a stale persistent_term meter entry
+    %% pointing at a dead gen_server.  Start opentelemetry_experimental here so the
+    %% provider is alive before the SBI listener registers its instruments.
+    {ok, S2} = application:ensure_all_started(opentelemetry_experimental),
+    {ok, S3} = application:ensure_all_started(udr_sbi),
     {ok, _}  = application:ensure_all_started(inets),
-    [{started, lists:usort(S1 ++ S2)} | Config].
+    [{started, lists:usort(S1 ++ S2 ++ S3)} | Config].
 
 end_per_suite(Config) ->
     Started = ?config(started, Config),

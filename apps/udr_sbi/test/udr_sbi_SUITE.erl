@@ -35,9 +35,16 @@ init_per_suite(Config) ->
     ok = udr_db_ct:setup_mnesia_ram(),
     application:load(udr_sbi),
     application:set_env(udr_sbi, port, ?PORT),
-    {ok, Started} = application:ensure_all_started(udr_sbi),
-    {ok, _} = application:ensure_all_started(inets),
-    [{started, Started} | Config].
+    %% udr_sbi calls opentelemetry_cowboy_experimental_h:init/0 on start, which
+    %% registers histograms on the global meter provider (otel_meter_provider_global).
+    %% In a full `rebar3 ct` run the OTEL SDK may have been started and stopped by a
+    %% prior suite (e.g. udr_otel_SUITE), leaving a stale persistent_term meter entry
+    %% pointing at a dead gen_server.  Start opentelemetry_experimental here so the
+    %% provider is alive before the SBI listener registers its instruments.
+    {ok, S0} = application:ensure_all_started(opentelemetry_experimental),
+    {ok, S1} = application:ensure_all_started(udr_sbi),
+    {ok, _}  = application:ensure_all_started(inets),
+    [{started, lists:usort(S0 ++ S1)} | Config].
 
 end_per_suite(Config) ->
     Started = ?config(started, Config),

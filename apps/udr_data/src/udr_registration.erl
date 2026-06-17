@@ -55,15 +55,20 @@
 %%------------------------------------------------------------------------------
 
 -doc "Convert a stored document to a typed registration map with defaults.\n"
-     "Older `schema_version` values (or absent) are upgraded in-memory.".
+     "Older `schema_version` values (or absent) are upgraded in-memory.\n"
+     "Known fields are normalised with canonical defaults; unknown fields are\n"
+     "passed through unchanged so callers that store extra data (e.g. `terminal_information`\n"
+     "from a NOR request) can read it back without loss.".
 -spec from_doc(doc()) -> registration_map().
 from_doc(Doc) ->
     Doc1 = upgrade(Doc),
-    #{ ?F_SCHEMA_VERSION    => ?SCHEMA_VERSION,
-       ?F_SERVING_MME_HOST  => maps:get(?F_SERVING_MME_HOST,  Doc1, <<>>),
-       ?F_SERVING_MME_REALM => maps:get(?F_SERVING_MME_REALM, Doc1, <<>>),
-       ?F_UE_PURGED         => maps:get(?F_UE_PURGED,         Doc1, false),
-       ?F_STATUS            => maps:get(?F_STATUS,            Doc1, <<>>) }.
+    %% Start from the (possibly upgraded) doc to preserve unknown fields, then
+    %% overlay the canonical schema fields with their defaults.
+    Doc1#{ ?F_SCHEMA_VERSION    => ?SCHEMA_VERSION,
+           ?F_SERVING_MME_HOST  => maps:get(?F_SERVING_MME_HOST,  Doc1, <<>>),
+           ?F_SERVING_MME_REALM => maps:get(?F_SERVING_MME_REALM, Doc1, <<>>),
+           ?F_UE_PURGED         => maps:get(?F_UE_PURGED,         Doc1, false),
+           ?F_STATUS            => maps:get(?F_STATUS,            Doc1, <<>>) }.
 
 -doc "Convert a typed registration map to a stored document, stamping `schema_version => 1`.".
 -spec to_doc(registration_map()) -> doc().
