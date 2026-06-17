@@ -60,16 +60,21 @@
 
 -doc "Convert a stored document to a typed auth map with defaults.\n"
      "Older `schema_version` values (or absent) are upgraded in-memory;\n"
-     "the next `update/3` write will persist the new shape.".
+     "the next `update/3` write will persist the new shape.\n"
+     "Known fields are normalised with canonical defaults; unknown fields are\n"
+     "passed through unchanged so callers that store extra data can read it\n"
+     "back without loss.".
 -spec from_doc(doc()) -> auth_map().
 from_doc(Doc) ->
     Doc1 = upgrade(Doc),
-    #{ ?F_SCHEMA_VERSION => ?SCHEMA_VERSION,
-       ?F_KI             => maps:get(?F_KI,        Doc1, <<>>),
-       ?F_OPC            => maps:get(?F_OPC,       Doc1, <<>>),
-       ?F_ALGORITHM      => maps:get(?F_ALGORITHM, Doc1, <<"milenage">>),
-       ?F_AMF            => maps:get(?F_AMF,       Doc1, <<>>),
-       ?F_SQN            => maps:get(?F_SQN,       Doc1, 0) }.
+    %% Start from the (possibly upgraded) doc to preserve unknown fields, then
+    %% overlay the canonical schema fields with their defaults.
+    Doc1#{ ?F_SCHEMA_VERSION => ?SCHEMA_VERSION,
+           ?F_KI             => maps:get(?F_KI,        Doc1, <<>>),
+           ?F_OPC            => maps:get(?F_OPC,       Doc1, <<>>),
+           ?F_ALGORITHM      => maps:get(?F_ALGORITHM, Doc1, <<"milenage">>),
+           ?F_AMF            => maps:get(?F_AMF,       Doc1, <<>>),
+           ?F_SQN            => maps:get(?F_SQN,       Doc1, 0) }.
 
 -doc "Convert a typed auth map to a stored document, stamping `schema_version => 1`.".
 -spec to_doc(auth_map()) -> doc().

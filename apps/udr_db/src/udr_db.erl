@@ -145,14 +145,16 @@ create(Coll, Key, Doc) ->
     end.
 
 -doc "Returns `true` when the backend is ready to serve requests.\n"
-     "For the Mnesia backend, delegates to `udr_db_mnesia:wait_ready/1` with a 0 ms\n"
-     "timeout (non-blocking check). For other backends, returns `true` after the\n"
-     "child_spec process is running (connection assumed established at start).".
+     "For the Mnesia backend, performs a non-blocking (0 ms timeout) check that\n"
+     "all local tables (minus the schema table) are loaded. For other backends,\n"
+     "returns `true` after the child_spec process is running (connection assumed\n"
+     "established at start).".
 -spec ready() -> boolean().
 ready() ->
     case backend() of
         udr_db_mnesia ->
-            case udr_db_mnesia:wait_ready([]) of
+            Tables = mnesia:system_info(local_tables) -- [schema],
+            case udr_db_mnesia:wait_ready_timeout(Tables, 0) of
                 ok -> true;
                 _  -> false
             end;

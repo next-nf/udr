@@ -133,9 +133,10 @@ get(Coll, Key) ->
         []    -> {error, not_found}
     end.
 
--doc "Unconditional upsert in a transaction. Bumps version by 1; sets to 1 for new keys.".
+-doc "Unconditional upsert in a transaction. Bumps version by 1; sets to 1 for new keys.\n"
+     "Infrastructure failures return `{error, Reason}` (database.md §6.1).".
 -spec put(udr_db_backend:collection(), udr_db_backend:key(), udr_db_backend:doc()) ->
-    {ok, udr_db_backend:version()}.
+    {ok, udr_db_backend:version()} | {error, term()}.
 put(Coll, Key, Doc) ->
     F = fun() ->
         NewVsn = case mnesia:read(Coll, Key, write) of
@@ -147,7 +148,7 @@ put(Coll, Key, Doc) ->
     end,
     case mnesia:transaction(F) of
         {atomic, V}  -> {ok, V};
-        {aborted, R} -> {error, {aborted, R}}
+        {aborted, R} -> {error, R}
     end.
 
 -doc "CAS write: succeeds iff stored version == ExpVsn. Returns new version on success.".

@@ -28,6 +28,7 @@
          auth_missing_optional_fields_default/1,
          auth_upgrade_on_read_absent_version/1,
          auth_upgrade_on_read_old_version/1,
+         auth_unknown_fields_pass_through/1,
          auth_advance_sqn_fun_increments/1,
          auth_advance_sqn_fun_start_derivable/1,
          auth_repair_sqn_fun_sets/1]).
@@ -56,6 +57,7 @@ all() ->
      auth_missing_optional_fields_default,
      auth_upgrade_on_read_absent_version,
      auth_upgrade_on_read_old_version,
+     auth_unknown_fields_pass_through,
      auth_advance_sqn_fun_increments,
      auth_advance_sqn_fun_start_derivable,
      auth_repair_sqn_fun_sets,
@@ -121,6 +123,24 @@ auth_upgrade_on_read_old_version(_Config) ->
     ?assertEqual(1, maps:get(<<"schema_version">>, Map)),
     ?assertEqual(<<"k2">>, maps:get(<<"ki">>, Map)),
     ?assertEqual(7, maps:get(<<"sqn">>, Map)),
+    ok.
+
+auth_unknown_fields_pass_through(_Config) ->
+    %% Unknown fields stored alongside known fields must survive from_doc/1
+    %% unchanged (preserve-then-overlay pattern).
+    Doc = #{ <<"schema_version">> => 1,
+             <<"ki">>             => <<"abc">>,
+             <<"sqn">>            => 42,
+             <<"vendor_ext">>     => <<"extra">>,
+             <<"provisioning_id">> => 9999 },
+    Map = udr_auth:from_doc(Doc),
+    %% Known fields are still normalised correctly.
+    ?assertEqual(1,       maps:get(<<"schema_version">>, Map)),
+    ?assertEqual(<<"abc">>, maps:get(<<"ki">>, Map)),
+    ?assertEqual(42,      maps:get(<<"sqn">>, Map)),
+    %% Unknown fields must be present and unmodified.
+    ?assertEqual(<<"extra">>, maps:get(<<"vendor_ext">>, Map)),
+    ?assertEqual(9999,        maps:get(<<"provisioning_id">>, Map)),
     ok.
 
 auth_advance_sqn_fun_increments(_Config) ->
