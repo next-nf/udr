@@ -36,9 +36,6 @@
 -define(SUB,  subscription_data).
 -define(REG,  access_registration).
 
-%% Index on the serving-MME host field used by registered_serving_nodes/0.
--define(REG_MME_INDEX, <<"serving_mme_host">>).
-
 -type imsi()     :: binary().
 -type resource() :: #{binary() => term()}.
 
@@ -46,14 +43,14 @@
 %% Collection bootstrap
 %%------------------------------------------------------------------------------
 
--doc "Declare all udr_data collections with their indexes. Call at application\n"
-     "start (before listeners open) so every collection and index exists.\n"
-     "Idempotent — safe to call multiple times.".
+-doc "Declare all udr_data collections. Call at application start (before\n"
+     "listeners open) so every collection exists. Idempotent — safe to call\n"
+     "multiple times.".
 -spec ensure_collections() -> ok.
 ensure_collections() ->
     ok = udr_db:ensure_collection(?AUTH, #{}),
     ok = udr_db:ensure_collection(?SUB,  #{}),
-    ok = udr_db:ensure_collection(?REG,  #{indexes => [?REG_MME_INDEX]}).
+    ok = udr_db:ensure_collection(?REG,  #{}).
 
 %%------------------------------------------------------------------------------
 %% auth_subscription
@@ -178,27 +175,28 @@ delete_3gpp_access_registration(Imsi) ->
     udr_db:delete(?REG, Imsi).
 
 -doc "Distinct, non-purged serving nodes (Host, Realm) across all 3GPP access\n"
-     "registrations. Uses the declared `serving_mme_host` index to find all\n"
-     "registrations that have a serving MME, then filters out purged UEs.\n"
-     "Used by the Reset procedure to fan out RSR to each serving node.".
+     "registrations. Performs a full streaming traversal of the access_registration\n"
+     "collection (a rare HSS Reset-path operation — not an indexed lookup).\n"
+     "Accumulates distinct {Host, Realm} tuples for non-purged registrations into\n"
+     "a set, then returns a sorted list. Infrastructure errors surface as\n"
+     "`{error, Reason}`.".
 -spec registered_serving_nodes() -> {ok, [{binary(), binary()}]} | {error, term()}.
 registered_serving_nodes() ->
-    case udr_db:find(?REG, #{}) of
-        {ok, Docs} ->
-            Nodes = lists:filtermap(
-                fun(Doc) ->
-                    Reg = udr_registration:from_doc(Doc),
-                    case udr_registration:is_purged(Reg) of
-                        true  -> false;
-                        false ->
-                            case udr_registration:serving_mme(Reg) of
-                                undefined -> false;
-                                Identity  -> {true, Identity}
-                            end
-                    end
-                end,
-                Docs),
-            {ok, lists:usort(Nodes)};
-        {error, _} = E ->
-            E
+    FoldFun = fun(Doc, Acc) ->
+        Reg = udr_registration:from_doc(Doc),
+        case udr_registration:is_purged(Reg) of
+            true  -> Acc;
+            false ->
+                case udr_registration:serving_mme(Reg) of
+                    undefined -> Acc;
+                    Identity  -> sets:add_element(Identity, Acc)
+                end
+        end
+    end,
+    try udr_db:fold(?REG, #{}, FoldFun, sets:new([{version, 2}])) of
+        {ok, NodeSet} ->
+            {ok, lists:sort(sets:to_list(NodeSet))}
+    catch
+        error:Reason -> {error, Reason};
+        exit:Reason  -> {error, Reason}
     end.
