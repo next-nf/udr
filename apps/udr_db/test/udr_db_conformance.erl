@@ -56,7 +56,9 @@ scenarios(B, Coll, IdxColl) ->
           ?assertEqual(42, maps:get(<<"x">>, Doc)),
           ?assertEqual(1, Vsn),
           %% version is metadata, never a doc field
-          ?assertEqual(error, maps:find(<<"version">>, Doc))
+          ?assertEqual(error, maps:find(<<"version">>, Doc)),
+          %% _id is storage metadata, must be stripped from returned doc
+          ?assertEqual(error, maps:find(<<"_id">>, Doc))
       end},
 
      {"get missing key returns {error, not_found}",
@@ -136,7 +138,9 @@ scenarios(B, Coll, IdxColl) ->
           {ok, Doc, Vsn} = B:take(Coll, <<"take_k">>),
           ?assertEqual(1, maps:get(<<"t">>, Doc)),
           ?assertEqual(1, Vsn),
-          ?assertEqual({error, not_found}, B:get(Coll, <<"take_k">>))
+          ?assertEqual({error, not_found}, B:get(Coll, <<"take_k">>)),
+          %% _id is storage metadata, must be stripped from returned doc
+          ?assertEqual(error, maps:find(<<"_id">>, Doc))
       end},
 
      {"take on absent key returns {error, not_found}",

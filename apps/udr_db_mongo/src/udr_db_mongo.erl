@@ -219,13 +219,15 @@ take(Coll, Key) ->
 -doc "Equality-selector query via find. Returns {ok, [doc()]}. Uses an index when\n"
      "the selector hits one, else scans (Mongo planner decides).".
 -spec find(udr_db_backend:collection(), udr_db_backend:selector()) ->
-    {ok, [udr_db_backend:doc()]}.
+    {ok, [udr_db_backend:doc()]} | {error, cursor_error}.
 find(Coll, Selector) ->
     EncodedSel = udr_db_mongo_bson:encode_doc(Selector),
     case mc_worker_api:find(conn(), coll(Coll), EncodedSel) of
         {ok, Cursor} ->
-            Docs = collect_cursor(Cursor),
-            {ok, [doc_from_raw(D) || D <- Docs]};
+            case collect_cursor(Cursor) of
+                {error, cursor_error} = Err -> Err;
+                Docs -> {ok, [doc_from_raw(D) || D <- Docs]}
+            end;
         [] ->
             {ok, []}
     end.
@@ -236,7 +238,7 @@ find(Coll, Selector) ->
 
 -doc "Guaranteed indexed read. Errors if Index was not declared in ensure_collection.".
 -spec find_by(udr_db_backend:collection(), udr_db_backend:index(), term()) ->
-    {ok, [udr_db_backend:doc()]} | {error, undeclared_index}.
+    {ok, [udr_db_backend:doc()]} | {error, undeclared_index} | {error, cursor_error}.
 find_by(Coll, Index, Value) ->
     case is_declared_index(Coll, Index) of
         false ->
@@ -245,8 +247,10 @@ find_by(Coll, Index, Value) ->
             Selector = #{Index => udr_db_mongo_bson:encode_value(Value)},
             case mc_worker_api:find(conn(), coll(Coll), Selector) of
                 {ok, Cursor} ->
-                    Docs = collect_cursor(Cursor),
-                    {ok, [doc_from_raw(D) || D <- Docs]};
+                    case collect_cursor(Cursor) of
+                        {error, cursor_error} = Err -> Err;
+                        Docs -> {ok, [doc_from_raw(D) || D <- Docs]}
+                    end;
                 [] ->
                     {ok, []}
             end
@@ -264,9 +268,9 @@ fold(Coll, Selector, Fun, Acc0) ->
     case mc_worker_api:find(conn(), coll(Coll), EncodedSel) of
         {ok, Cursor} ->
             Acc = mc_cursor:foldl(
-                fun(Raw, Acc) ->
+                fun(Raw, AccIn) ->
                     Doc = doc_from_raw(Raw),
-                    Fun(Doc, Acc)
+                    Fun(Doc, AccIn)
                 end,
                 Acc0, Cursor, infinity),
             {ok, Acc};
@@ -280,11 +284,13 @@ fold(Coll, Selector, Fun, Acc0) ->
 
 -doc "countDocuments equivalent via the count command with a filter selector.".
 -spec count(udr_db_backend:collection(), udr_db_backend:selector()) ->
-    {ok, non_neg_integer()}.
+    {ok, non_neg_integer()} | {error, term()}.
 count(Coll, Selector) ->
     EncodedSel = udr_db_mongo_bson:encode_doc(Selector),
-    N = mc_worker_api:count(conn(), coll(Coll), EncodedSel),
-    {ok, N}.
+    case mc_worker_api:count(conn(), coll(Coll), EncodedSel) of
+        N when is_integer(N) -> {ok, N};
+        {error, _} = Err     -> Err
+    end.
 
 %%--------------------------------------------------------------------
 %% Pure helpers (exported for unit tests)
@@ -335,12 +341,14 @@ doc_from_raw(Raw) ->
     element(1, decode_with_version(Raw)).
 
 %% Collect all docs from a cursor into a list.
--spec collect_cursor(pid()) -> [map()].
+%% Normal end-of-cursor sentinels ({} or empty list) return the docs accumulated.
+%% A genuine error sentinel (error atom) is returned as {error, cursor_error}.
+-spec collect_cursor(pid()) -> [map()] | {error, cursor_error}.
 collect_cursor(Cursor) ->
     case mc_cursor:rest(Cursor) of
         Docs when is_list(Docs) -> Docs;
-        error                   -> [];
-        {}                      -> []
+        {}                      -> [];
+        error                   -> {error, cursor_error}
     end.
 
 %% Build the _id equality selector (with BSON-wrapped key).
