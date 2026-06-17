@@ -20,8 +20,8 @@
            "\n"
            "Table layout: `attributes = [key | AtomIdxFields] ++ [version, doc]`.\n"
            "Binary index names from `coll_opts()` are converted to atoms for Mnesia\n"
-           "attribute names; the mapping is stored in a per-collection ETS meta-table\n"
-           "owned by this gen_server so `find_by` can resolve names to positions.\n"
+           "attribute names; the mapping is stored in `persistent_term` keyed by\n"
+           "`{udr_db_mnesia, Coll, idx}` (node-global, txn-safe) so `find_by` can resolve names to positions.\n"
            "\n"
            "Read ops (`get`, `find`, `find_by`, `count`) are dirty/lock-free (P7).\n"
            "`cas_put` and `take` use `mnesia:transaction`. `fold` uses `async_dirty`.".
@@ -187,8 +187,9 @@ take(Coll, Key) ->
 find(Coll, Selector) ->
     Pattern = mnesia:table_info(Coll, wild_pattern),
     Rows    = mnesia:dirty_match_object(Coll, Pattern),
-    Docs    = [row_doc(Coll, Row) || Row <- Rows,
-               selector_matches(Selector, row_doc(Coll, Row))],
+    Docs    = [Doc || Row <- Rows,
+               Doc <- [row_doc(Coll, Row)],
+               selector_matches(Selector, Doc)],
     {ok, Docs}.
 
 -doc "Guaranteed indexed read via `mnesia:dirty_index_read`. Returns `{error, undeclared_index}`\n"
