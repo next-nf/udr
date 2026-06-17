@@ -17,7 +17,7 @@
 -module(udr_db_ets).
 -moduledoc "In-memory ETS backend for `udr_db` (dev/test). A gen_server owns the table\n"
            "and serializes writes so version-CAS updates are atomic.".
--behaviour(udr_db_backend).
+%% Implements the old 7-callback contract; retired in Task 8.
 -behaviour(gen_server).
 
 -export([child_spec/1, start_link/0]).

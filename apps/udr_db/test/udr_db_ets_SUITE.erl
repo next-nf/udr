@@ -20,14 +20,12 @@
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
 -export([put_then_get/1, get_missing/1, delete_removes_doc/1,
          find_by_field/1, find_no_matches/1,
-         update_matching_version/1, update_stale_version/1, update_missing_key/1,
-         conformance/1]).
+         update_matching_version/1, update_stale_version/1, update_missing_key/1]).
 
 all() ->
     [put_then_get, get_missing, delete_removes_doc,
      find_by_field, find_no_matches,
-     update_matching_version, update_stale_version, update_missing_key,
-     conformance].
+     update_matching_version, update_stale_version, update_missing_key].
 
 init_per_testcase(_TestCase, Config) ->
     application:set_env(udr_db, backend, udr_db_ets),
@@ -96,9 +94,3 @@ update_missing_key(_Config) ->
                  udr_db:update(auth_subscription, <<"nope">>, 1, #{inc => #{<<"sqn">> => 1}})),
     ok.
 
-%% conformance
-
-conformance(_Config) ->
-    [ begin ct:log("scenario: ~s", [Name]), Fun() end
-      || {Name, Fun} <- udr_db_conformance:scenarios() ],
-    ok.

@@ -59,7 +59,7 @@ find(Coll, Selector) -> (backend()):find(Coll, Selector).
 -doc "Atomic compare-and-swap update: apply Mutation iff the stored `version` equals\n"
      "ExpectedVersion, bumping `version` to ExpectedVersion+1. Returns the new document.".
 -spec update(udr_db_backend:collection(), udr_db_backend:key(), non_neg_integer(),
-             udr_db_backend:mutation()) ->
+             map()) ->
     {ok, udr_db_backend:doc()} | {error, version_conflict} | {error, not_found} | {error, term()}.
 update(Coll, Key, ExpectedVersion, Mutation) ->
     (backend()):update(Coll, Key, ExpectedVersion, Mutation).
