@@ -29,7 +29,7 @@
 -behaviour(gen_server).
 
 %% Public API
--export([child_spec/1, start_link/1]).
+-export([child_spec/1, start_link/1, wait_ready/1]).
 
 %% udr_db_backend callbacks
 -export([ensure_collection/2, get/2, put/3, cas_put/4, delete/2,
@@ -53,6 +53,19 @@ child_spec(Opts) ->
 -spec start_link(map()) -> {ok, pid()} | {error, term()}.
 start_link(Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Opts, []).
+
+-doc "Wait until all listed tables (or a single table) are ready (loaded into Mnesia).\n"
+     "Uses a default timeout of 5 000 ms. Used as the readiness gate\n"
+     "(database.md §6.4; Task 8 calls this).".
+-spec wait_ready([atom()] | atom()) -> ok | {error, term()}.
+wait_ready(Colls) when is_list(Colls) ->
+    case mnesia:wait_for_tables(Colls, 5000) of
+        ok              -> ok;
+        {timeout, Tabs} -> {error, {timeout, Tabs}};
+        {error, Reason} -> {error, Reason}
+    end;
+wait_ready(Coll) when is_atom(Coll) ->
+    wait_ready([Coll]).
 
 %%--------------------------------------------------------------------
 %% gen_server callbacks
