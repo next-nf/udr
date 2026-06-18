@@ -38,8 +38,9 @@
 -doc "Fetch a document. May use a dirty/lock-free read (P7).".
 -callback get(collection(), key()) -> {ok, doc(), version()} | {error, not_found}.
 
--doc "Unconditional upsert. Returns the new version.".
--callback put(collection(), key(), doc()) -> {ok, version()}.
+-doc "Unconditional upsert. Returns the new version, or `{error, Reason}` on an\n"
+     "infrastructure failure (e.g. an aborted transaction / driver error, §6.1).".
+-callback put(collection(), key(), doc()) -> {ok, version()} | {error, term()}.
 
 -doc "Write iff stored version == ExpectedVersion, bump version.".
 -callback cas_put(collection(), key(), version(), doc()) ->

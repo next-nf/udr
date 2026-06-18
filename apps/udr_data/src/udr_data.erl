@@ -56,11 +56,14 @@ ensure_collections() ->
 %% auth_subscription
 %%------------------------------------------------------------------------------
 
--doc "Store (create or replace) the authentication subscription for an IMSI.".
--spec put_authentication_subscription(imsi(), resource()) -> ok.
+-doc "Store (create or replace) the authentication subscription for an IMSI.\n"
+     "Returns `{error, Reason}` if the backend write fails (propagated, not swallowed).".
+-spec put_authentication_subscription(imsi(), resource()) -> ok | {error, term()}.
 put_authentication_subscription(Imsi, Sub) ->
-    {ok, _V} = udr_db:put(?AUTH, Imsi, udr_auth:to_doc(Sub)),
-    ok.
+    case udr_db:put(?AUTH, Imsi, udr_auth:to_doc(Sub)) of
+        {ok, _V}       -> ok;
+        {error, _} = E -> E
+    end.
 
 -doc "Fetch the authentication subscription (Ki/OPc/algorithm/AMF/SQN) for an IMSI.".
 -spec get_authentication_subscription(imsi()) -> {ok, resource()} | {error, not_found}.
@@ -87,11 +90,13 @@ delete_authentication_subscription(Imsi) ->
     {ok, non_neg_integer()} | {error, not_found} | {error, cas_exhausted}.
 advance_sqn(Imsi, N) ->
     case udr_db:update(?AUTH, Imsi, udr_auth:advance_sqn_fun(N)) of
-        {ok, NewDoc, _V} ->
-            Start = maps:get(<<"sqn">>, NewDoc) - N,
+        {ok, #{<<"sqn">> := Sqn} = _NewDoc, _V} ->
+            Start = Sqn - N,
             {ok, Start};
-        {error, not_found}  -> {error, not_found};
-        {error, max_retries} -> {error, cas_exhausted}
+        {error, not_found} -> {error, not_found};
+        %% max_retries or an infrastructure abort: the reservation could not be
+        %% committed — surface as cas_exhausted (HSS answers AUTH_DATA_UNAVAILABLE).
+        {error, _}         -> {error, cas_exhausted}
     end.
 
 -doc "Repair the stored SQN to the supplied value after an AUTS resync.\n"
@@ -101,20 +106,24 @@ advance_sqn(Imsi, N) ->
     ok | {error, not_found} | {error, cas_exhausted}.
 repair_sqn(Imsi, SqnMs) ->
     case udr_db:update(?AUTH, Imsi, udr_auth:repair_sqn_fun(SqnMs)) of
-        {ok, _, _}           -> ok;
-        {error, not_found}   -> {error, not_found};
-        {error, max_retries} -> {error, cas_exhausted}
+        {ok, _, _}         -> ok;
+        {error, not_found} -> {error, not_found};
+        %% max_retries or an infrastructure abort: treat as cas_exhausted.
+        {error, _}         -> {error, cas_exhausted}
     end.
 
 %%------------------------------------------------------------------------------
 %% subscription_data
 %%------------------------------------------------------------------------------
 
--doc "Store (create or replace) the EPS subscription profile for an IMSI.".
--spec put_subscription_data(imsi(), resource()) -> ok.
+-doc "Store (create or replace) the EPS subscription profile for an IMSI.\n"
+     "Returns `{error, Reason}` if the backend write fails (propagated, not swallowed).".
+-spec put_subscription_data(imsi(), resource()) -> ok | {error, term()}.
 put_subscription_data(Imsi, Profile) ->
-    {ok, _V} = udr_db:put(?SUB, Imsi, udr_subscription:to_doc(Profile)),
-    ok.
+    case udr_db:put(?SUB, Imsi, udr_subscription:to_doc(Profile)) of
+        {ok, _V}       -> ok;
+        {error, _} = E -> E
+    end.
 
 -doc "The full EPS subscription profile (AM + SM) for an IMSI, in one read.".
 -spec get_subscription_data(imsi()) -> {ok, resource()} | {error, not_found}.
@@ -157,11 +166,14 @@ get_3gpp_access_registration(Imsi) ->
         {error, not_found} -> {error, not_registered}
     end.
 
--doc "Store (create or replace) the 3GPP access registration for an IMSI.".
--spec put_3gpp_access_registration(imsi(), resource()) -> ok.
+-doc "Store (create or replace) the 3GPP access registration for an IMSI.\n"
+     "Returns `{error, Reason}` if the backend write fails (propagated, not swallowed).".
+-spec put_3gpp_access_registration(imsi(), resource()) -> ok | {error, term()}.
 put_3gpp_access_registration(Imsi, Reg) ->
-    {ok, _V} = udr_db:put(?REG, Imsi, udr_registration:to_doc(Reg)),
-    ok.
+    case udr_db:put(?REG, Imsi, udr_registration:to_doc(Reg)) of
+        {ok, _V}       -> ok;
+        {error, _} = E -> E
+    end.
 
 -doc "Delete (clear) the 3GPP access registration for an IMSI (purge).".
 -spec delete_3gpp_access_registration(imsi()) -> ok.

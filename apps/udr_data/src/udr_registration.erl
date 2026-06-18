@@ -62,13 +62,16 @@
 -spec from_doc(doc()) -> registration_map().
 from_doc(Doc) ->
     Doc1 = upgrade(Doc),
-    %% Start from the (possibly upgraded) doc to preserve unknown fields, then
-    %% overlay the canonical schema fields with their defaults.
-    Doc1#{ ?F_SCHEMA_VERSION    => ?SCHEMA_VERSION,
-           ?F_SERVING_MME_HOST  => maps:get(?F_SERVING_MME_HOST,  Doc1, <<>>),
-           ?F_SERVING_MME_REALM => maps:get(?F_SERVING_MME_REALM, Doc1, <<>>),
-           ?F_UE_PURGED         => maps:get(?F_UE_PURGED,         Doc1, false),
-           ?F_STATUS            => maps:get(?F_STATUS,            Doc1, <<>>) }.
+    %% Defaults for the canonical schema fields; merge lets the (upgraded) stored
+    %% doc win, so present fields — known or unknown — are preserved and only
+    %% absent ones fall back to their default. `upgrade/1` normalises
+    %% schema_version, so the merge can never retain a stale version.
+    Init = #{ ?F_SCHEMA_VERSION    => ?SCHEMA_VERSION,
+              ?F_SERVING_MME_HOST  => <<>>,
+              ?F_SERVING_MME_REALM => <<>>,
+              ?F_UE_PURGED         => false,
+              ?F_STATUS            => <<>> },
+    maps:merge(Init, Doc1).
 
 -doc "Convert a typed registration map to a stored document, stamping `schema_version => 1`.".
 -spec to_doc(registration_map()) -> doc().
@@ -77,18 +80,21 @@ to_doc(Map) ->
 
 -doc "Returns `true` iff `<<\"ue_purged\">>` is `true` in the registration map.".
 -spec is_purged(registration_map()) -> boolean().
-is_purged(Map) ->
-    maps:get(?F_UE_PURGED, Map, false) =:= true.
+is_purged(#{?F_UE_PURGED := Purged}) when is_boolean(Purged) ->
+    Purged;
+is_purged(_Map) ->
+    false.
 
 -doc "Extracts the serving MME identity `{Host, Realm}` from a registration map.\n"
      "Returns `undefined` when `<<\"serving_mme_host\">>` is absent or empty.".
 -spec serving_mme(registration_map()) ->
     {Host :: binary(), Realm :: binary()} | undefined.
-serving_mme(Map) ->
-    case maps:get(?F_SERVING_MME_HOST, Map, <<>>) of
-        <<>> -> undefined;
-        Host -> {Host, maps:get(?F_SERVING_MME_REALM, Map, <<>>)}
-    end.
+serving_mme(#{?F_SERVING_MME_HOST := <<>>}) ->
+    undefined;
+serving_mme(#{?F_SERVING_MME_HOST := Host} = Map) ->
+    {Host, maps:get(?F_SERVING_MME_REALM, Map, <<>>)};
+serving_mme(_Map) ->
+    undefined.
 
 %%------------------------------------------------------------------------------
 %% Internal helpers
@@ -100,6 +106,7 @@ serving_mme(Map) ->
 upgrade(#{?F_SCHEMA_VERSION := ?SCHEMA_VERSION} = Doc) ->
     Doc;
 upgrade(Doc) ->
-    %% schema_version absent or older: treat as pre-v1 and let from_doc/1
-    %% apply defaults.
-    Doc.
+    %% schema_version absent or older: treat as pre-v1 and let from_doc/1 apply
+    %% defaults. Stamp the current version here so `from_doc/1`'s `maps:merge`
+    %% retains the normalised version rather than a stale stored one.
+    Doc#{?F_SCHEMA_VERSION => ?SCHEMA_VERSION}.

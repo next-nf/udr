@@ -63,13 +63,16 @@
 -spec from_doc(doc()) -> subscription_map().
 from_doc(Doc) ->
     Doc1 = upgrade(Doc),
-    %% Start from the (possibly upgraded) doc to preserve unknown fields, then
-    %% overlay the canonical schema fields with their defaults.
-    Doc1#{ ?F_SCHEMA_VERSION     => ?SCHEMA_VERSION,
-           ?F_MSISDN             => maps:get(?F_MSISDN,            Doc1, <<>>),
-           ?F_SUBSCRIBER_STATUS  => maps:get(?F_SUBSCRIBER_STATUS, Doc1, <<"SERVICE_GRANTED">>),
-           ?F_AMBR               => maps:get(?F_AMBR,              Doc1, #{}),
-           ?F_APN_CONFIG_PROFILE => maps:get(?F_APN_CONFIG_PROFILE, Doc1, #{}) }.
+    %% Defaults for the canonical schema fields; merge lets the (upgraded) stored
+    %% doc win, so present fields — known or unknown — are preserved and only
+    %% absent ones fall back to their default. `upgrade/1` normalises
+    %% schema_version, so the merge can never retain a stale version.
+    Init = #{ ?F_SCHEMA_VERSION     => ?SCHEMA_VERSION,
+              ?F_MSISDN             => <<>>,
+              ?F_SUBSCRIBER_STATUS  => <<"SERVICE_GRANTED">>,
+              ?F_AMBR               => #{},
+              ?F_APN_CONFIG_PROFILE => #{} },
+    maps:merge(Init, Doc1).
 
 -doc "Convert a typed subscription map to a stored document, stamping `schema_version => 1`.".
 -spec to_doc(subscription_map()) -> doc().
@@ -96,6 +99,7 @@ sm_view(Map) ->
 upgrade(#{?F_SCHEMA_VERSION := ?SCHEMA_VERSION} = Doc) ->
     Doc;
 upgrade(Doc) ->
-    %% schema_version absent or older: treat as pre-v1 and let from_doc/1
-    %% apply defaults.
-    Doc.
+    %% schema_version absent or older: treat as pre-v1 and let from_doc/1 apply
+    %% defaults. Stamp the current version here so `from_doc/1`'s `maps:merge`
+    %% retains the normalised version rather than a stale stored one.
+    Doc#{?F_SCHEMA_VERSION => ?SCHEMA_VERSION}.

@@ -37,8 +37,13 @@ handle(<<"PUT">>, Imsi, Req0) ->
     {ok, Raw, Req1} = cowboy_req:read_body(Req0),
     try udr_sbi_json:decode(Raw) of
         Reg when is_map(Reg) ->
-            ok = udr_data:put_3gpp_access_registration(Imsi, Reg),
-            cowboy_req:reply(204, Req1);
+            case udr_data:put_3gpp_access_registration(Imsi, Reg) of
+                ok ->
+                    cowboy_req:reply(204, Req1);
+                {error, _} ->
+                    udr_sbi:problem(Req1, 500, <<"Internal Server Error">>,
+                                    <<"storage error">>)
+            end;
         _ ->
             udr_sbi:problem(Req1, 400, <<"Bad Request">>, <<"body must be a JSON object">>)
     catch _:_ ->

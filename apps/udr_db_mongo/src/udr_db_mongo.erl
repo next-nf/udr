@@ -118,7 +118,7 @@ get(Coll, Key) ->
      "starts from 0 (the implicit default) and produces 1; for existing docs\n"
      "it reads the stored version and increments it.".
 -spec put(udr_db_backend:collection(), udr_db_backend:key(), udr_db_backend:doc()) ->
-    {ok, udr_db_backend:version()}.
+    {ok, udr_db_backend:version()} | {error, term()}.
 put(Coll, Key, Doc) ->
     Conn = conn(),
     CollBin = coll(Coll),

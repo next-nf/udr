@@ -48,9 +48,10 @@ backend() ->
     {ok, udr_db_backend:doc(), udr_db_backend:version()} | {error, not_found}.
 get(Coll, Key) -> (backend()):get(Coll, Key).
 
--doc "Unconditional upsert. Returns `{ok, Version}` with the new version.".
+-doc "Unconditional upsert. Returns `{ok, Version}` with the new version, or\n"
+     "`{error, Reason}` if the backend write fails (infrastructure error, §6.1).".
 -spec put(udr_db_backend:collection(), udr_db_backend:key(), udr_db_backend:doc()) ->
-    {ok, udr_db_backend:version()}.
+    {ok, udr_db_backend:version()} | {error, term()}.
 put(Coll, Key, Doc) ->
     (backend()):put(Coll, Key, Doc).
 
@@ -102,7 +103,8 @@ count(Coll, Selector) -> (backend()):count(Coll, Selector).
     {ok, udr_db_backend:doc(), udr_db_backend:version()} |
     {error, {aborted, term()}} |
     {error, not_found} |
-    {error, max_retries}.
+    {error, max_retries} |
+    {error, term()}.
 update(Coll, Key, Fun) -> update(Coll, Key, Fun, ?MAX_RETRIES).
 
 -spec update(udr_db_backend:collection(), udr_db_backend:key(),
@@ -111,7 +113,8 @@ update(Coll, Key, Fun) -> update(Coll, Key, Fun, ?MAX_RETRIES).
     {ok, udr_db_backend:doc(), udr_db_backend:version()} |
     {error, {aborted, term()}} |
     {error, not_found} |
-    {error, max_retries}.
+    {error, max_retries} |
+    {error, term()}.
 update(_, _, _, 0) ->
     {error, max_retries};
 update(Coll, Key, Fun, N) ->
@@ -126,18 +129,22 @@ update(Coll, Key, Fun, N) ->
                     case (backend()):cas_put(Coll, Key, Vsn, Doc1) of
                         {ok, V2}                  -> {ok, Doc1, V2};
                         {error, version_conflict} -> update(Coll, Key, Fun, N - 1);
-                        {error, not_found}        -> {error, not_found}
+                        {error, not_found}        -> {error, not_found};
+                        %% Infrastructure failure (e.g. an aborted transaction):
+                        %% propagate rather than crashing the caller (§6.1).
+                        {error, Reason}           -> {error, Reason}
                     end
             end
     end.
 
 -doc "Insert-if-absent. Returns `{ok, Version}` on success, `{error, exists}` if a\n"
-     "document already exists for the key.\n"
+     "document already exists for the key, or `{error, Reason}` if the backend write\n"
+     "fails (infrastructure error, §6.1).\n"
      "Note: the race window between `get` and `put` is not locked by this facade.\n"
      "Callers should hold a per-key `udr_cluster:with_entity` lock when strict\n"
      "uniqueness is required.".
 -spec create(udr_db_backend:collection(), udr_db_backend:key(), udr_db_backend:doc()) ->
-    {ok, udr_db_backend:version()} | {error, exists}.
+    {ok, udr_db_backend:version()} | {error, exists} | {error, term()}.
 create(Coll, Key, Doc) ->
     case (backend()):get(Coll, Key) of
         {ok, _, _}         -> {error, exists};

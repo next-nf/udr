@@ -25,7 +25,8 @@
          get_am_subscription/1, get_sm_subscription/1, get_am_subscription_unknown_imsi/1,
          registration_put_then_get/1, registration_delete/1,
          get_subscription_data/1, get_subscription_data_unknown_imsi/1,
-         delete_authentication_subscription/1, delete_subscription_data/1]).
+         delete_authentication_subscription/1, delete_subscription_data/1,
+         put_propagates_storage_error/1]).
 
 all() ->
     [put_then_get, get_unknown_imsi,
@@ -34,7 +35,8 @@ all() ->
      get_am_subscription, get_sm_subscription, get_am_subscription_unknown_imsi,
      registration_put_then_get, registration_delete,
      get_subscription_data, get_subscription_data_unknown_imsi,
-     delete_authentication_subscription, delete_subscription_data].
+     delete_authentication_subscription, delete_subscription_data,
+     put_propagates_storage_error].
 
 init_per_suite(Config) ->
     application:set_env(udr_db, backend, udr_db_mnesia),
@@ -192,4 +194,22 @@ delete_subscription_data(_Config) ->
     ok = udr_data:put_subscription_data(<<"i">>, #{<<"msisdn">> => <<"49">>}),
     ok = udr_data:delete_subscription_data(<<"i">>),
     ?assertEqual({error, not_found}, udr_data:get_subscription_data(<<"i">>)),
+    ok.
+
+%% A backend write failure must PROPAGATE through the put_* seam as {error, _},
+%% never collapse into a crash (the bug a {ok,_V}=put(...) match introduced — a
+%% storage failure then surfaced to the caller as a 4xx instead of a 5xx).
+put_propagates_storage_error(_Config) ->
+    Restore = persistent_term:get({udr_db, backend}, udr_db_mnesia),
+    persistent_term:put({udr_db, backend}, udr_db_failing_backend),
+    try
+        ?assertEqual({error, storage_unavailable},
+                     udr_data:put_authentication_subscription(<<"i">>, #{<<"ki">> => <<"k">>})),
+        ?assertEqual({error, storage_unavailable},
+                     udr_data:put_subscription_data(<<"i">>, #{<<"msisdn">> => <<"49">>})),
+        ?assertEqual({error, storage_unavailable},
+                     udr_data:put_3gpp_access_registration(<<"i">>, #{<<"status">> => <<"r">>}))
+    after
+        persistent_term:put({udr_db, backend}, Restore)
+    end,
     ok.
