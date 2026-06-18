@@ -91,16 +91,20 @@ to_doc(Map) ->
      "`NewDoc` and computing `Start = Sqn - N`.".
 -spec advance_sqn_fun(pos_integer()) -> update_fun().
 advance_sqn_fun(N) ->
-    fun(Doc) ->
-        Sqn = maps:get(?F_SQN, Doc, 0),
-        {ok, Doc#{ ?F_SQN => Sqn + N }}
+    fun(#{?F_SQN := Sqn} = Doc) ->
+            {ok, Doc#{?F_SQN := Sqn + N}};
+       (Doc) ->
+            %% sqn absent — same as advancing from the implicit 0.
+            {ok, Doc#{?F_SQN => N}}
     end.
 
 -doc "Returns a Fun suitable for `update/3` that sets `<<\"sqn\">>` to Sqn.".
 -spec repair_sqn_fun(non_neg_integer()) -> update_fun().
 repair_sqn_fun(Sqn) ->
-    fun(Doc) ->
-        {ok, Doc#{ ?F_SQN => Sqn }}
+    fun(#{?F_SQN := _} = Doc) ->
+            {ok, Doc#{?F_SQN := Sqn}};
+       (Doc) ->
+            {ok, Doc#{?F_SQN => Sqn}}
     end.
 
 %%------------------------------------------------------------------------------
