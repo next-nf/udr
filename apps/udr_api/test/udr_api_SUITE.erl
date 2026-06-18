@@ -24,20 +24,24 @@
 -export([auth_from_json_opc/1, auth_from_json_derives_opc_from_op/1,
          auth_from_json_tuak/1, auth_from_json_tuak_256k/1, auth_from_json_tuak_bad_opc/1,
          listener_up/1, put_creates_subscriber/1, put_without_op_or_opc_400/1,
-         put_malformed_json_400/1, get_delete_subscriber/1, get_unknown_404/1]).
+         put_malformed_json_400/1, put_storage_error_500/1,
+         get_delete_subscriber/1, get_unknown_404/1]).
 
 all() ->
     [auth_from_json_opc, auth_from_json_derives_opc_from_op,
      auth_from_json_tuak, auth_from_json_tuak_256k, auth_from_json_tuak_bad_opc,
      listener_up, put_creates_subscriber, put_without_op_or_opc_400,
-     put_malformed_json_400, get_delete_subscriber, get_unknown_404].
+     put_malformed_json_400, put_storage_error_500,
+     get_delete_subscriber, get_unknown_404].
 
 init_per_suite(Config) ->
     %% Load first so these set_env values are not clobbered by the .app file's
     %% {env, ...} defaults (application:load reads those at load time).
     _ = application:load(udr_db),
     _ = application:load(udr_api),
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:set_env(udr_api, port, ?PORT),
     {ok, Started} = application:ensure_all_started(udr_api),
     {ok, _} = application:ensure_all_started(inets),
@@ -46,6 +50,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 url(Path) -> "http://127.0.0.1:" ++ integer_to_list(?PORT) ++ Path.
@@ -144,6 +149,26 @@ put_without_op_or_opc_400(_Config) ->
 put_malformed_json_400(_Config) ->
     {ok, {{_, 400, _}, _, _}} =
         req(put, "/provision/v1/subscribers/x", <<"{not valid json">>),
+    ok.
+
+%% A backend write failure on PUT must surface as 500 ("storage error"), not 400.
+%% Before the fix, the put_* {ok,_V}= match crashed and the handler's catch-all
+%% reported it as a 400 "invalid request body". Force writes to fail to confirm 500.
+put_storage_error_500(_Config) ->
+    Restore = persistent_term:get({udr_db, backend}, udr_db_mnesia),
+    persistent_term:put({udr_db, backend}, udr_db_failing_backend),
+    try
+        Imsi = <<"001010000000009">>,
+        Body = udr_api_json:encode(#{
+            <<"auth">> => #{<<"ki">> => <<"465b5ce8b199b49faa5f0a2ee238a6bc">>,
+                            <<"opc">> => <<"cd63cb71954a9f4e48a5994e37a02baf">>,
+                            <<"algorithm">> => <<"milenage">>, <<"amf">> => <<"b9b9">>,
+                            <<"sqn">> => 0}}),
+        {ok, {{_, 500, _}, _, _}} =
+            req(put, "/provision/v1/subscribers/" ++ binary_to_list(Imsi), Body)
+    after
+        persistent_term:put({udr_db, backend}, Restore)
+    end,
     ok.
 
 get_delete_subscriber(_Config) ->

@@ -84,13 +84,13 @@ do_provision(Imsi, Msisdn, Iccid, Algo, Secret, Amf, Req) ->
             %% by a storage error or a crash then leaves auth_subscription absent,
             %% so a retry safely re-runs and completes -- never a stuck half-state.
             case udr_data:put_subscription_data(Imsi, Profile) of
-                {error, Reason} ->
-                    {error, {storage, Reason}};
                 ok ->
                     case udr_data:put_authentication_subscription(Imsi, Auth) of
-                        ok              -> {ok, #{imsi => Imsi, iccid => Iccid}};
+                        ok             -> {ok, #{imsi => Imsi, iccid => Iccid}};
                         {error, Reason} -> {error, {storage, Reason}}
-                    end
+                    end;
+                {error, Reason} ->
+                    {error, {storage, Reason}}
             end
     end.
 

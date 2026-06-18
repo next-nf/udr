@@ -19,8 +19,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([cross_node_mutex/0, cross_node_mutex/1]).
+-export([node_down_releases_lock/0, node_down_releases_lock/1]).
+%% Exported for use as MFA on peer nodes (avoids shipping funs across distribution).
+-export([hold_entity/3]).
 
-all() -> [cross_node_mutex].
+all() -> [cross_node_mutex, node_down_releases_lock].
 
 cross_node_mutex() -> [{timetrap, {seconds, 30}}].
 
@@ -69,6 +72,62 @@ cross_node_mutex(_Config) ->
         application:stop(udr_cluster)
     end,
     ok.
+
+%% Distinct from cross_node_mutex (which tests process-death auto-release via
+%% `Holder ! stop`): here the peer node itself goes down hard via peer:stop/1 while
+%% a process on that node is parked inside with_entity/3, holding the syn lock.
+%% syn must auto-release the downed node's registration so the origin can re-acquire
+%% — this is the "node-down recovery" guarantee from database.md §8.3.
+node_down_releases_lock() -> [{timetrap, {seconds, 30}}].
+
+node_down_releases_lock(_Config) ->
+    Scope = udr_cluster:scope(),
+    {ok, _} = application:ensure_all_started(udr_cluster),
+    {ok, Peer, PeerNode} = ?CT_PEER(#{name => ?CT_PEER_NAME(),
+                                      args => ["-pa" | code:get_path()],
+                                      wait_boot => 20000}),
+    Key = <<"001010node-down-key">>,
+    try
+        {ok, _} = erpc:call(PeerNode, application, ensure_all_started, [udr_cluster]),
+
+        %% Spawn a process ON the peer (MFA, no fun shipped) that acquires the lock
+        %% and parks inside the critical section, signalling the CT node once held.
+        Origin = self(),
+        _PeerHolder = erlang:spawn(PeerNode, ?MODULE, hold_entity, [Scope, Key, Origin]),
+        receive
+            {held, _} -> ok
+        after 5000 -> ct:fail(lock_not_acquired_on_peer)
+        end,
+
+        %% syn is eventually consistent: wait until the origin also sees the holder.
+        wait_until(fun() -> udr_cluster:whereis_entity(Scope, Key) =/= undefined end),
+        ?assertEqual({error, session_busy},
+                     udr_cluster:with_entity(Scope, Key, fun() -> 1 end, 200)),
+
+        %% Hard node-down: stop the peer (not a process kill on the origin).
+        %% syn must detect the node-down and de-register the holder.
+        peer:stop(Peer),
+
+        %% Bounded retry: syn propagates node-down events asynchronously.
+        %% Use with_entity itself as the probe — success means the lock was freed.
+        wait_until(fun() ->
+            ok =:= udr_cluster:with_entity(Scope, Key, fun() -> ok end, 0)
+        end, 200)
+    after
+        %% peer:stop is idempotent; safe to call again if the test path already stopped it.
+        catch peer:stop(Peer),
+        application:stop(udr_cluster)
+    end,
+    ok.
+
+%% Runs ON the peer node (exported MFA — no closure shipped across distribution).
+%% Acquires the (Scope, Key) lock via the public API, signals Origin with {held, self()},
+%% then parks indefinitely. The lock is freed when the node goes down.
+hold_entity(Scope, Key, Origin) ->
+    udr_cluster:with_entity(Scope, Key, fun() ->
+        Origin ! {held, self()},
+        receive _Any -> ok end
+    end).
 
 wait_until(F) -> wait_until(F, 100).
 wait_until(_F, 0) -> erlang:error(timeout);

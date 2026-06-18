@@ -38,9 +38,11 @@ handle(<<"PUT">>, Imsi, Req0) ->
     try udr_sbi_json:decode(Raw) of
         Reg when is_map(Reg) ->
             case udr_data:put_3gpp_access_registration(Imsi, Reg) of
-                ok         -> cowboy_req:reply(204, Req1);
-                {error, _} -> udr_sbi:problem(Req1, 500, <<"Internal Server Error">>,
-                                              <<"storage error">>)
+                ok ->
+                    cowboy_req:reply(204, Req1);
+                {error, _} ->
+                    udr_sbi:problem(Req1, 500, <<"Internal Server Error">>,
+                                    <<"storage error">>)
             end;
         _ ->
             udr_sbi:problem(Req1, 400, <<"Bad Request">>, <<"body must be a JSON object">>)
@@ -48,10 +50,7 @@ handle(<<"PUT">>, Imsi, Req0) ->
         udr_sbi:problem(Req1, 400, <<"Bad Request">>, <<"invalid JSON body">>)
     end;
 handle(<<"DELETE">>, Imsi, Req0) ->
-    case udr_data:delete_3gpp_access_registration(Imsi) of
-        ok         -> cowboy_req:reply(204, Req0);
-        {error, _} -> udr_sbi:problem(Req0, 500, <<"Internal Server Error">>,
-                                      <<"storage error">>)
-    end;
+    ok = udr_data:delete_3gpp_access_registration(Imsi),
+    cowboy_req:reply(204, Req0);
 handle(_M, _Imsi, Req) ->
     udr_sbi:problem(Req, 405, <<"Method Not Allowed">>, <<"GET, PUT, DELETE are supported">>).

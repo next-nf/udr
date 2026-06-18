@@ -29,8 +29,10 @@ all() -> [air, ulr_then_clr, pur, nor, idr, dsr, rsr,
           common_dictionary_is_rfc6733, decode_errors_answer_not_crash].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
-    {ok, _} = application:ensure_all_started(udr_hss),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    {ok, S1} = application:ensure_all_started(udr_hss),
     Imsi = <<"001010000000001">>,
     ok = udr_data:put_authentication_subscription(Imsi, #{
            <<"ki">> => binary:decode_hex(<<"465b5ce8b199b49faa5f0a2ee238a6bc">>),
@@ -44,13 +46,15 @@ init_per_suite(Config) ->
     %% the listen port must be set AFTER the app is loaded for it to take effect.
     ok = application:load(udr_diameter),
     application:set_env(udr_diameter, listen, [{tcp, {127,0,0,1}, Port}]),
-    {ok, _} = application:ensure_all_started(udr_diameter),
+    {ok, S2} = application:ensure_all_started(udr_diameter),
     {ok, _Mme} = udr_diameter_test_mme:start(Port),
-    [{imsi, Imsi} | Config].
+    [{imsi, Imsi}, {started, lists:usort(S1 ++ S2)} | Config].
 
-end_per_suite(_Config) ->
+end_per_suite(Config) ->
     _ = udr_diameter_test_mme:stop(),
-    _ = application:stop(udr_diameter),
+    Started = ?config(started, Config),
+    [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 air(Config) ->

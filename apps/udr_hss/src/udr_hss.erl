@@ -58,12 +58,16 @@ do_ulr(#{imsi := Imsi, mme_host := NewHost, mme_realm := NewRealm} = Req) ->
                     <<"rat_type">>          => maps:get(rat_type, Req, undefined),
                     <<"visited_plmn">>      => maps:get(visited_plmn, Req, <<>>),
                     <<"updated_at">>        => erlang:system_time(second)},
-            ok = udr_data:put_3gpp_access_registration(Imsi, Reg),
-            Answer = case maps:get(skip_subscriber_data, Req, false) of
-                         true  -> #{};
-                         false -> #{subscription_data => Profile}
-                     end,
-            {ok, Answer, Effects}
+            case udr_data:put_3gpp_access_registration(Imsi, Reg) of
+                ok ->
+                    Answer = case maps:get(skip_subscriber_data, Req, false) of
+                                 true  -> #{};
+                                 false -> #{subscription_data => Profile}
+                             end,
+                    {ok, Answer, Effects};
+                {error, _} ->
+                    {error, unable_to_comply}
+            end
     end.
 
 -doc "Decide an HSS-initiated Reset fan-out: one reset effect per distinct, non-purged\n"
@@ -135,8 +139,13 @@ clr_effect_if_moved(Imsi, NewHost, CancelType) ->
 -spec active_registration(binary()) -> {ok, map()} | {error, not_registered}.
 active_registration(Imsi) ->
     case udr_data:get_3gpp_access_registration(Imsi) of
-        {ok, #{<<"ue_purged">> := true}}           -> {error, not_registered};
-        {ok, #{<<"serving_mme_host">> := _} = Reg} -> {ok, Reg};
+        {ok, #{<<"ue_purged">> := true}}              -> {error, not_registered};
+        %% A non-empty serving_mme_host identifies an active serving node.
+        %% An empty <<>> is the from_doc/1 default for an absent field — treat it
+        %% as "no active registration" so a malformed or zeroed-out registration
+        %% document does not accidentally produce HSS effects.
+        {ok, #{<<"serving_mme_host">> := H} = Reg}
+          when H =/= <<>>, H =/= undefined       -> {ok, Reg};
         _                                          -> {error, not_registered}
     end.
 
@@ -163,9 +172,11 @@ do_pur(#{imsi := Imsi} = Req) ->
             case udr_data:get_3gpp_access_registration(Imsi) of
                 {ok, #{<<"serving_mme_host">> := Origin} = Reg} when Origin =/= undefined ->
                     %% Purge from the registered serving MME: mark purged, freeze M-TMSI.
-                    ok = udr_data:put_3gpp_access_registration(
-                           Imsi, Reg#{<<"ue_purged">> => true}),
-                    {ok, #{freeze_m_tmsi => true}, []};
+                    case udr_data:put_3gpp_access_registration(
+                           Imsi, Reg#{<<"ue_purged">> => true}) of
+                        ok         -> {ok, #{freeze_m_tmsi => true}, []};
+                        {error, _} -> {error, unable_to_comply}
+                    end;
                 _ ->
                     %% Unknown serving node (no registration, or a different MME): no freeze.
                     {ok, #{freeze_m_tmsi => false}, []}
@@ -194,8 +205,10 @@ do_nor(#{imsi := Imsi} = Req) ->
                                undefined -> Reg;
                                TI        -> Reg#{<<"terminal_information">> => TI}
                            end,
-                    ok = udr_data:put_3gpp_access_registration(Imsi, Reg1),
-                    {ok, #{}, []};
+                    case udr_data:put_3gpp_access_registration(Imsi, Reg1) of
+                        ok         -> {ok, #{}, []};
+                        {error, _} -> {error, unable_to_comply}
+                    end;
                 _ ->
                     {error, unknown_serving_node}
             end
@@ -228,10 +241,14 @@ do_air(#{imsi := Imsi, visited_plmn := SnId, num_vectors := N} = Req) ->
     end.
 
 %% Validate the stored authentication material; return the algorithm and keys, or
-%% {error, invalid} when a required field is missing or the algorithm is unknown
-%% (the HSS then answers DIAMETER_ERROR_AUTHENTICATION_DATA_UNAVAILABLE).
+%% {error, invalid} when a required field is missing, empty, or the algorithm is
+%% unknown (the HSS then answers DIAMETER_ERROR_AUTHENTICATION_DATA_UNAVAILABLE).
+%% The from_doc/1 normalizer supplies <<>> defaults for absent fields, so we also
+%% reject empty binaries to ensure a subscriber with only an SQN counter (no
+%% real credentials) cannot accidentally attempt crypto with zero-length keys.
 auth_material(#{<<"algorithm">> := AlgoBin, <<"ki">> := K,
-                <<"opc">> := OPc, <<"amf">> := AMF}) ->
+                <<"opc">> := OPc, <<"amf">> := AMF})
+  when K =/= <<>>, OPc =/= <<>>, AMF =/= <<>> ->
     case algo(AlgoBin) of
         {ok, Algo} -> {ok, Algo, K, OPc, AMF};
         error      -> {error, invalid}
@@ -256,7 +273,7 @@ maybe_resync(_Imsi, _Req, _Algo, _K, _OPc) ->
 
 %% --- helpers ---
 in_session(Imsi, Fun) ->
-    udr_cluster:with_session(Imsi, Fun).
+    udr_cluster:with_entity(udr_session, Imsi, Fun).
 
 algo(<<"milenage">>) -> {ok, milenage};
 algo(<<"tuak">>)     -> {ok, tuak};

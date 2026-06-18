@@ -17,7 +17,7 @@
 -module(udr_hss_dsd_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([dsd_registered_returns_effect/1,
          dsd_not_registered_returns_error/1,
          dsd_purged_returns_not_registered/1]).
@@ -27,8 +27,17 @@ all() ->
      dsd_not_registered_returns_error,
      dsd_purged_returns_not_registered].
 
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    Config.
+
+end_per_suite(_Config) ->
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
 init_per_testcase(_TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
     {ok, Started} = application:ensure_all_started(udr_hss),
     [{started, Started} | Config].
 

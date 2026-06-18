@@ -17,18 +17,25 @@
 
 -module(udr_db_reset_cth).
 -moduledoc """
-Common Test hook that empties the shared udr_db store around each suite.
+Common Test hook that empties the shared Mnesia store around each suite.
 
-The ets backend uses one node-wide named table; a suite that leaves udr_db
+The Mnesia backend uses node-wide named tables; a suite that leaves udr_db
 running (its apps not fully stopped) lets records accumulate across the whole
-`rebar3 ct` run and contaminate later suites. This hook calls udr_db:flush/0
-before and after every suite WHEN udr_db is running -- i.e. exactly when a
-prior suite leaked it -- so each suite starts from an empty store regardless of
-run order. When udr_db is down (its ets table already gone) the hook is a no-op.
+`rebar3 ct` run and contaminate later suites.
 
-Registered globally via {ct_hooks, ...} in rebar.config; flush is gated by the
-{udr_db, allow_flush} env, set true only in config/ct.sys.config. Any error is
-swallowed so the hook can never turn a green suite red.
+This hook fires before and after every suite to:
+  1. Clear all non-schema Mnesia tables — removes stale data from a prior suite
+     that left the store running.
+  2. Recreate udr_data collections when the applications are running but their
+     Mnesia tables are absent (i.e. a prior suite called teardown_mnesia while
+     udr_db was still up). This prevents the next suite's ensure_all_started/1
+     from silently skipping ensure_collections/0.
+
+When Mnesia is not running the hook is a no-op.  Any error in the hook is
+swallowed so it can never turn a green suite red.
+
+Registered globally via `{ct_hooks, [udr_preload_cth, udr_db_reset_cth]}` in
+rebar.config.
 """.
 -export([id/1, init/2, pre_init_per_suite/3, post_end_per_suite/4]).
 
@@ -37,18 +44,33 @@ id(_Opts) -> ?MODULE.
 init(_Id, _Opts) -> {ok, #{}}.
 
 pre_init_per_suite(_Suite, Config, State) ->
-    _ = maybe_flush(),
+    _ = catch reset_tables(),
     {Config, State}.
 
 post_end_per_suite(_Suite, _Config, Return, State) ->
-    _ = maybe_flush(),
+    _ = catch reset_tables(),
     {Return, State}.
 
-%% Flush only when udr_db is running (leaked from a prior suite or active);
-%% otherwise the store is already gone. Backend-agnostic via udr_db:flush/0.
-maybe_flush() ->
-    case lists:keymember(udr_db, 1, application:which_applications()) of
-        true  -> catch udr_db:flush();
+%% Clear all non-schema Mnesia tables and, when udr_data is running but its
+%% tables are absent (Mnesia was restarted by a prior suite while the apps
+%% stayed up), recreate them so the next suite starts from a consistent state.
+reset_tables() ->
+    case mnesia:system_info(is_running) of
+        yes ->
+            Tables = [T || T <- mnesia:system_info(local_tables), T =/= schema],
+            [catch mnesia:clear_table(T) || T <- Tables],
+            maybe_ensure_collections();
+        _ ->
+            %% Mnesia is not running; nothing to clear.
+            ok
+    end.
+
+%% If udr_data is started but none of its collections exist (Mnesia was
+%% restarted from scratch while the app stayed up), recreate them now.
+%% ensure_collections/0 is idempotent so calling it when tables already exist
+%% is harmless.
+maybe_ensure_collections() ->
+    case lists:keymember(udr_data, 1, application:which_applications()) of
+        true  -> catch udr_data:ensure_collections();
         false -> ok
-    end,
-    ok.
+    end.

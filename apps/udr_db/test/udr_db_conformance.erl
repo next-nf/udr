@@ -15,76 +15,202 @@
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -module(udr_db_conformance).
--moduledoc "Backend-agnostic conformance scenarios for any `udr_db_backend`.\n"
-           "Run through the `udr_db` facade against a configured + started backend.".
+-moduledoc "Backend-agnostic conformance scenarios for any `udr_db_backend` implementation.\n"
+           "Covers all scenarios mandated by database.md §8.1.\n"
+           "\n"
+           "Usage: call `scenarios(Backend, Coll, IdxColl)` where:\n"
+           "  `Backend`  — the module implementing `udr_db_backend` (e.g. `udr_db_mnesia`)\n"
+           "  `Coll`     — a collection atom (no indexes) already created via `ensure_collection`\n"
+           "  `IdxColl`  — a collection atom with `#{indexes => [<<\"idx\">>]}` already created\n"
+           "\n"
+           "Each scenario is a `{Name::string(), fun/0}` pair that asserts exact return values\n"
+           "and is self-contained (uses unique keys, makes no assumptions about prior state).".
 -include_lib("eunit/include/eunit.hrl").
 
--export([scenarios/0]).
+-export([scenarios/3]).
 
--doc "Return the list of {Name, Fun/0} conformance scenarios.".
--spec scenarios() -> [{string(), fun(() -> any())}].
-scenarios() ->
+-doc "Return the list of `{Name, Fun/0}` conformance scenarios.\n"
+     "`Backend` is called directly (not via the facade).".
+-spec scenarios(module(), atom(), atom()) -> [{string(), fun(() -> any())}].
+scenarios(B, Coll, IdxColl) ->
     [
-     {"put initializes version=1 and get round-trips",
+     %% ---- CRUD ----
+     {"put returns {ok, 1} for a new key",
       fun() ->
-          ok = udr_db:put(c, <<"k1">>, #{<<"a">> => 1}),
-          {ok, D} = udr_db:get(c, <<"k1">>),
-          ?assertEqual(1, maps:get(<<"a">>, D)),
-          ?assertEqual(1, maps:get(<<"version">>, D))
+          {ok, V} = B:put(Coll, <<"crud_put_new">>, #{<<"a">> => 1}),
+          ?assertEqual(1, V)
       end},
-     {"get missing returns not_found",
-      fun() -> ?assertEqual({error, not_found}, udr_db:get(c, <<"missing">>)) end},
-     {"put replaces an existing doc",
+
+     {"put upserts and bumps version",
       fun() ->
-          ok = udr_db:put(c, <<"k2">>, #{<<"a">> => 1}),
-          ok = udr_db:put(c, <<"k2">>, #{<<"b">> => 2}),
-          {ok, D} = udr_db:get(c, <<"k2">>),
-          ?assertEqual(error, maps:find(<<"a">>, D)),   %% old field gone (full replace)
-          ?assertEqual(2, maps:get(<<"b">>, D)),
-          ?assertEqual(1, maps:get(<<"version">>, D))   %% put always resets version to 1
+          {ok, V1} = B:put(Coll, <<"crud_put_upsert">>, #{<<"a">> => 1}),
+          ?assertEqual(1, V1),
+          {ok, V2} = B:put(Coll, <<"crud_put_upsert">>, #{<<"a">> => 2}),
+          ?assertEqual(2, V2)
       end},
-     {"delete removes the doc",
+
+     {"get round-trips doc without version in doc body",
       fun() ->
-          ok = udr_db:put(c, <<"k3">>, #{<<"a">> => 1}),
-          ok = udr_db:delete(c, <<"k3">>),
-          ?assertEqual({error, not_found}, udr_db:get(c, <<"k3">>))
+          {ok, _} = B:put(Coll, <<"crud_get">>, #{<<"x">> => 42}),
+          {ok, Doc, Vsn} = B:get(Coll, <<"crud_get">>),
+          ?assertEqual(42, maps:get(<<"x">>, Doc)),
+          ?assertEqual(1, Vsn),
+          %% version is metadata, never a doc field
+          ?assertEqual(error, maps:find(<<"version">>, Doc)),
+          %% _id is storage metadata, must be stripped from returned doc
+          ?assertEqual(error, maps:find(<<"_id">>, Doc))
       end},
-     {"find matches by selector equality",
+
+     {"get missing key returns {error, not_found}",
       fun() ->
-          ok = udr_db:put(c, <<"k4">>, #{<<"m">> => <<"x">>}),
-          ok = udr_db:put(c, <<"k5">>, #{<<"m">> => <<"y">>}),
-          {ok, Docs} = udr_db:find(c, #{<<"m">> => <<"x">>}),
-          ?assertEqual(1, length(Docs))
+          ?assertEqual({error, not_found}, B:get(Coll, <<"crud_get_missing">>))
       end},
-     {"find returns all matching docs (multi-match)",
+
+     {"delete removes doc",
       fun() ->
-          ok = udr_db:put(c, <<"k4a">>, #{<<"m">> => <<"z">>}),
-          ok = udr_db:put(c, <<"k4b">>, #{<<"m">> => <<"z">>}),
-          ok = udr_db:put(c, <<"k4c">>, #{<<"m">> => <<"q">>}),
-          {ok, Docs} = udr_db:find(c, #{<<"m">> => <<"z">>}),
-          ?assertEqual(2, length(Docs)),
-          ?assert(lists:all(fun(D) -> maps:get(<<"m">>, D) =:= <<"z">> end, Docs))
+          {ok, _} = B:put(Coll, <<"crud_del">>, #{<<"a">> => 1}),
+          ok = B:delete(Coll, <<"crud_del">>),
+          ?assertEqual({error, not_found}, B:get(Coll, <<"crud_del">>))
       end},
-     {"update CAS: matching version applies set+inc, bumps version",
+
+     {"delete is idempotent on absent key",
       fun() ->
-          ok = udr_db:put(c, <<"k6">>, #{<<"sqn">> => 10, <<"s">> => <<"a">>}),
-          {ok, New} = udr_db:update(c, <<"k6">>, 1,
-                                    #{set => #{<<"s">> => <<"b">>}, inc => #{<<"sqn">> => 5}}),
-          ?assertEqual(15, maps:get(<<"sqn">>, New)),
-          ?assertEqual(<<"b">>, maps:get(<<"s">>, New)),
-          ?assertEqual(2, maps:get(<<"version">>, New))
+          ok = B:delete(Coll, <<"crud_del_absent">>),
+          ok = B:delete(Coll, <<"crud_del_absent">>)
       end},
-     {"update CAS: stale version returns version_conflict, no mutation",
+
+     {"delete is idempotent on already-deleted key",
       fun() ->
-          ok = udr_db:put(c, <<"k7">>, #{<<"sqn">> => 10}),
+          {ok, _} = B:put(Coll, <<"crud_del_idem">>, #{<<"a">> => 1}),
+          ok = B:delete(Coll, <<"crud_del_idem">>),
+          ok = B:delete(Coll, <<"crud_del_idem">>)
+      end},
+
+     {"find returns matching docs by selector equality",
+      fun() ->
+          {ok, _} = B:put(Coll, <<"find_k1">>, #{<<"m">> => <<"x">>}),
+          {ok, _} = B:put(Coll, <<"find_k2">>, #{<<"m">> => <<"y">>}),
+          {ok, _} = B:put(Coll, <<"find_k3">>, #{<<"m">> => <<"x">>}),
+          {ok, Docs} = B:find(Coll, #{<<"m">> => <<"x">>}),
+          Vals = [maps:get(<<"m">>, D) || D <- Docs,
+                  maps:get(<<"m">>, D, undefined) =:= <<"x">>],
+          ?assertEqual(2, length(Vals))
+      end},
+
+     {"find returns empty list when no match",
+      fun() ->
+          {ok, Docs} = B:find(Coll, #{<<"find_none_sentinel">> => <<"z99">>}),
+          ?assertEqual([], Docs)
+      end},
+
+     %% ---- cas_put ----
+     {"cas_put succeeds when version matches and bumps version",
+      fun() ->
+          {ok, 1} = B:put(Coll, <<"cas_match">>, #{<<"v">> => 1}),
+          {ok, Doc0, 1} = B:get(Coll, <<"cas_match">>),
+          {ok, V2} = B:cas_put(Coll, <<"cas_match">>, 1, Doc0#{<<"v">> => 2}),
+          ?assertEqual(2, V2),
+          {ok, Doc1, V3} = B:get(Coll, <<"cas_match">>),
+          ?assertEqual(2, V3),
+          ?assertEqual(2, maps:get(<<"v">>, Doc1))
+      end},
+
+     {"cas_put returns {error, version_conflict} on stale version",
+      fun() ->
+          {ok, _} = B:put(Coll, <<"cas_stale">>, #{<<"v">> => 1}),
           ?assertEqual({error, version_conflict},
-                       udr_db:update(c, <<"k7">>, 7, #{inc => #{<<"sqn">> => 1}})),
-          {ok, D} = udr_db:get(c, <<"k7">>),
-          ?assertEqual(10, maps:get(<<"sqn">>, D))
+                       B:cas_put(Coll, <<"cas_stale">>, 99, #{<<"v">> => 2})),
+          %% doc must be unchanged
+          {ok, Doc, 1} = B:get(Coll, <<"cas_stale">>),
+          ?assertEqual(1, maps:get(<<"v">>, Doc))
       end},
-     {"update CAS: missing key returns not_found",
+
+     {"cas_put returns {error, not_found} for absent key",
       fun() ->
           ?assertEqual({error, not_found},
-                       udr_db:update(c, <<"nope">>, 1, #{inc => #{<<"sqn">> => 1}}))
+                       B:cas_put(Coll, <<"cas_absent">>, 1, #{<<"v">> => 1}))
+      end},
+
+     %% ---- take ----
+     {"take returns {ok, Doc, Vsn} and removes the doc",
+      fun() ->
+          {ok, _} = B:put(Coll, <<"take_k">>, #{<<"t">> => 1}),
+          {ok, Doc, Vsn} = B:take(Coll, <<"take_k">>),
+          ?assertEqual(1, maps:get(<<"t">>, Doc)),
+          ?assertEqual(1, Vsn),
+          ?assertEqual({error, not_found}, B:get(Coll, <<"take_k">>)),
+          %% _id is storage metadata, must be stripped from returned doc
+          ?assertEqual(error, maps:find(<<"_id">>, Doc))
+      end},
+
+     {"take on absent key returns {error, not_found}",
+      fun() ->
+          ?assertEqual({error, not_found}, B:take(Coll, <<"take_absent">>))
+      end},
+
+     {"take is atomic: second take returns not_found",
+      fun() ->
+          {ok, _} = B:put(Coll, <<"take_double">>, #{<<"t">> => 2}),
+          {ok, _, _} = B:take(Coll, <<"take_double">>),
+          ?assertEqual({error, not_found}, B:take(Coll, <<"take_double">>))
+      end},
+
+     %% ---- find_by (indexed collection) ----
+     {"find_by returns docs matching the declared index value",
+      fun() ->
+          {ok, _} = B:put(IdxColl, <<"fb_k1">>, #{<<"idx">> => <<"v1">>, <<"d">> => 1}),
+          {ok, _} = B:put(IdxColl, <<"fb_k2">>, #{<<"idx">> => <<"v2">>, <<"d">> => 2}),
+          {ok, _} = B:put(IdxColl, <<"fb_k3">>, #{<<"idx">> => <<"v1">>, <<"d">> => 3}),
+          {ok, Docs} = B:find_by(IdxColl, <<"idx">>, <<"v1">>),
+          ?assertEqual(2, length(Docs)),
+          ?assert(lists:all(fun(D) -> maps:get(<<"idx">>, D) =:= <<"v1">> end, Docs))
+      end},
+
+     {"find_by returns empty list when no match",
+      fun() ->
+          {ok, Docs} = B:find_by(IdxColl, <<"idx">>, <<"no_such_value">>),
+          ?assertEqual([], Docs)
+      end},
+
+     {"find_by returns error for undeclared index",
+      fun() ->
+          ?assertEqual({error, undeclared_index},
+                       B:find_by(IdxColl, <<"not_declared">>, <<"x">>))
+      end},
+
+     %% ---- fold ----
+     {"fold iterates all matching docs",
+      fun() ->
+          {ok, _} = B:put(Coll, <<"fold_k1">>, #{<<"grp">> => <<"g1">>, <<"n">> => 1}),
+          {ok, _} = B:put(Coll, <<"fold_k2">>, #{<<"grp">> => <<"g1">>, <<"n">> => 2}),
+          {ok, _} = B:put(Coll, <<"fold_k3">>, #{<<"grp">> => <<"g2">>, <<"n">> => 3}),
+          {ok, Sum} = B:fold(Coll, #{<<"grp">> => <<"g1">>},
+                             fun(Doc, Acc) -> Acc + maps:get(<<"n">>, Doc) end, 0),
+          ?assertEqual(3, Sum)
+      end},
+
+     {"fold over empty match returns initial accumulator",
+      fun() ->
+          {ok, Acc} = B:fold(Coll, #{<<"fold_none_sentinel">> => <<"zzz">>},
+                             fun(_Doc, A) -> A + 1 end, 0),
+          ?assertEqual(0, Acc)
+      end},
+
+     %% ---- count ----
+     {"count returns number of matching docs",
+      fun() ->
+          {ok, _} = B:put(Coll, <<"cnt_k1">>, #{<<"cg">> => <<"c1">>}),
+          {ok, _} = B:put(Coll, <<"cnt_k2">>, #{<<"cg">> => <<"c1">>}),
+          {ok, _} = B:put(Coll, <<"cnt_k3">>, #{<<"cg">> => <<"c2">>}),
+          {ok, N1} = B:count(Coll, #{<<"cg">> => <<"c1">>}),
+          ?assertEqual(2, N1),
+          {ok, N2} = B:count(Coll, #{<<"cg">> => <<"c2">>}),
+          ?assertEqual(1, N2)
+      end},
+
+     {"count returns 0 for empty result",
+      fun() ->
+          {ok, N} = B:count(Coll, #{<<"count_none_sentinel">> => <<"zzz">>}),
+          ?assertEqual(0, N)
       end}
     ].

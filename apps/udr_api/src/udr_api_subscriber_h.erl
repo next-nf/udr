@@ -66,7 +66,7 @@ handle(_Method, _Imsi, Req0) ->
     udr_api_http:reply_json(404, #{<<"error">> => <<"not found">>}, Req0).
 
 %% Persist profile then auth; auth_subscription is the record consumers key on,
-%% so writing it last keeps a partial/failed write retry-safe. First error short-circuits.
+%% so writing it last keeps a partial/failed write retry-safe.
 -spec store(binary(), map(), map()) -> ok | {error, term()}.
 store(Imsi, Auth, Profile) ->
     case udr_data:put_subscription_data(Imsi, Profile) of

@@ -21,19 +21,21 @@
          end_per_testcase/2]).
 -export([mint_201/1, mint_conflict_409/1, missing_iccid_400/1,
          bad_amf_400/1, op_not_configured_500/1, put_unchanged/1,
-         non_hex_amf_400/1]).
+         non_hex_amf_400/1, storage_error_500/1]).
 
 -define(PORT, 8099).
 -define(OP, binary:decode_hex(<<"000102030405060708090a0b0c0d0e0f">>)).
 
 all() ->
     [mint_201, mint_conflict_409, missing_iccid_400, bad_amf_400,
-     op_not_configured_500, put_unchanged, non_hex_amf_400].
+     op_not_configured_500, put_unchanged, non_hex_amf_400, storage_error_500].
 
 init_per_suite(Config) ->
     _ = application:load(udr_db),
     _ = application:load(udr_api),
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:set_env(udr_api, port, ?PORT),
     {ok, Started} = application:ensure_all_started(udr_api),
     {ok, _} = application:ensure_all_started(inets),
@@ -41,6 +43,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     [application:stop(A) || A <- lists:reverse(?config(started, Config))],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 init_per_testcase(_TestCase, Config) ->
@@ -99,6 +102,21 @@ op_not_configured_500(_Config) ->
     Body = udr_api_json:encode(#{<<"msisdn">> => <<"49170">>,
                                  <<"iccid">>  => <<"8988001000000000205">>}),
     {ok, {{_, 500, _}, _, _}} = post(mint_path(Imsi), Body),
+    ok.
+
+%% A backend write failure during minting must surface as 500 ("storage error"),
+%% not a 400. Force every write to fail by swapping in the failing backend.
+storage_error_500(_Config) ->
+    Restore = persistent_term:get({udr_db, backend}, udr_db_mnesia),
+    persistent_term:put({udr_db, backend}, udr_db_failing_backend),
+    try
+        Imsi = <<"001010000000208">>,
+        Body = udr_api_json:encode(#{<<"msisdn">> => <<"49170">>,
+                                     <<"iccid">>  => <<"8988001000000000208">>}),
+        {ok, {{_, 500, _}, _, _}} = post(mint_path(Imsi), Body)
+    after
+        persistent_term:put({udr_db, backend}, Restore)
+    end,
     ok.
 
 non_hex_amf_400(_Config) ->

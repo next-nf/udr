@@ -24,13 +24,16 @@
 all() -> [s6a_core_attach].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     {ok, Started} = application:ensure_all_started(udr_hss),
     [{started, Started} | Config].
 
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [ application:stop(A) || A <- lists:reverse(Started) ],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 s6a_core_attach(_Config) ->

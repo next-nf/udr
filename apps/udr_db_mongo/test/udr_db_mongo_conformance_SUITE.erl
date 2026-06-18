@@ -15,14 +15,23 @@
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -module(udr_db_mongo_conformance_SUITE).
+-moduledoc "Runs the backend-agnostic `udr_db_conformance` scenarios against the\n"
+           "`udr_db_mongo` backend via a testcontainer (or CI Mongo service).\n"
+           "\n"
+           "Collections: `conf_plain` (no indexes) and `conf_idx` (with `<<\"idx\">>` index)\n"
+           "are set up in `init_per_suite` via `udr_db_mongo:ensure_collection/2`.\n"
+           "Content is cleared before each test case to ensure independence.".
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_suite/1, end_per_suite/1]).
+-export([all/0, init_per_suite/1, end_per_suite/1,
+         init_per_testcase/2, end_per_testcase/2]).
 -export([conformance/1]).
 
 -define(CONTAINER, "udr-mongo-conformance").
 -define(PORT, 27017).
 -define(DB, <<"udr_conformance">>).
+-define(COLL,     conf_plain).
+-define(IDX_COLL, conf_idx).
 
 all() ->
     [conformance].
@@ -32,14 +41,17 @@ init_per_suite(Config) ->
         {ok, #{host := Host, port := Port}} ->
             %% Load udr_db FIRST so our backend override survives: setting
             %% env before the app is loaded would be reset to the .app
-            %% default (udr_db_ets) when ensure_all_started loads it.
+            %% default (udr_db_mnesia) when ensure_all_started loads it.
             _ = application:load(udr_db),
             application:set_env(udr_db, backend, udr_db_mongo),
             application:set_env(udr_db, backend_opts,
                                 #{database => ?DB, host => Host, port => Port}),
             persistent_term:erase({udr_db, backend}),
             {ok, Started} = application:ensure_all_started(udr_db),
-            drop_collection(),
+            %% Declare collections via the backend directly (conformance suite
+            %% calls the backend module, not the facade).
+            ok = udr_db_mongo:ensure_collection(?COLL, #{}),
+            ok = udr_db_mongo:ensure_collection(?IDX_COLL, #{indexes => [<<"idx">>]}),
             [{started, Started} | Config];
         {skip, Reason} ->
             {skip, Reason}
@@ -52,14 +64,29 @@ end_per_suite(Config) ->
     udr_mongo_ct:stop(?CONTAINER),
     ok.
 
-conformance(_Config) ->
-    [ begin ct:log("scenario: ~s", [Name]), Fun() end
-      || {Name, Fun} <- udr_db_conformance:scenarios() ],
+init_per_testcase(_Name, Config) ->
+    drop_collections(),
+    Config.
+
+end_per_testcase(_Name, _Config) ->
     ok.
 
-%% --- helpers --------------------------------------------------------------
+conformance(_Config) ->
+    Scenarios = udr_db_conformance:scenarios(udr_db_mongo, ?COLL, ?IDX_COLL),
+    lists:foreach(
+        fun({Name, Fun}) ->
+            ct:log("scenario: ~s", [Name]),
+            Fun()
+        end,
+        Scenarios),
+    ok.
 
-drop_collection() ->
+%%--------------------------------------------------------------------
+%% helpers
+%%--------------------------------------------------------------------
+
+drop_collections() ->
     Conn = udr_db_mongo_conn:conn(),
-    _ = mc_worker_api:delete(Conn, <<"c">>, #{}),
+    _ = mc_worker_api:delete(Conn, atom_to_binary(?COLL, utf8), #{}),
+    _ = mc_worker_api:delete(Conn, atom_to_binary(?IDX_COLL, utf8), #{}),
     ok.

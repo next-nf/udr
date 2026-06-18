@@ -17,7 +17,7 @@
 -module(udr_hss_nor_SUITE).
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--export([all/0, init_per_testcase/2, end_per_testcase/2]).
+-export([all/0, init_per_suite/1, end_per_suite/1, init_per_testcase/2, end_per_testcase/2]).
 -export([nor_from_registered_mme_stores_terminal_info/1,
          nor_unknown_subscriber_returns_user_unknown/1,
          nor_from_unregistered_node_returns_unknown_serving_node/1,
@@ -29,8 +29,17 @@ all() ->
      nor_from_unregistered_node_returns_unknown_serving_node,
      nor_from_purged_registration_returns_unknown_serving_node].
 
+init_per_suite(Config) ->
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
+    Config.
+
+end_per_suite(_Config) ->
+    udr_db_ct:teardown_mnesia(),
+    ok.
+
 init_per_testcase(_TestCase, Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
     {ok, Started} = application:ensure_all_started(udr_hss),
     [{started, Started} | Config].
 

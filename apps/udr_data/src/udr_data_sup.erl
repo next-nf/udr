@@ -14,21 +14,21 @@
 %%
 %% You should have received a copy of the GNU Affero General Public License
 %% along with this program.  If not, see <https://www.gnu.org/licenses/>.
-{application, udr_db, [
-    {description, "Pluggable generic document store for the HSS/UDR"},
-    {vsn, "0.1.0"},
-    {registered, [udr_db_sup, udr_db_mnesia]},
-    {mod, {udr_db_app, []}},
-    {applications, [
-        kernel,
-        stdlib,
-        mnesia
-    ]},
-    {env, [
-        {backend, udr_db_mnesia},
-        {backend_opts, #{storage => ram_copies}}
-    ]},
-    {modules, []},
-    {licenses, ["AGPL-3.0-or-later"]},
-    {links, []}
-]}.
+-module(udr_data_sup).
+-moduledoc "Top supervisor for `udr_data`. `udr_data` has no long-running workers of its\n"
+           "own — it is a pure facade over `udr_db`. This supervisor exists to satisfy the\n"
+           "OTP application contract (start/2 must return `{ok, Pid}`).\n"
+           "Collection bootstrap runs in `udr_data_app:start/2` before this supervisor.".
+-behaviour(supervisor).
+
+-export([start_link/0]).
+-export([init/1]).
+
+-spec start_link() -> {ok, pid()} | {error, term()}.
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init([]) ->
+    SupFlags = #{strategy => one_for_one, intensity => 0, period => 1},
+    {ok, {SupFlags, []}}.

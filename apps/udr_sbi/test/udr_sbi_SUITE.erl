@@ -20,26 +20,38 @@
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([ue_imsi/1, strip_meta/1, auth_view/1,
          listener_up/1, read_resources/1,
-         registration_write/1, registration_write_bad_json/1]).
+         registration_write/1, registration_write_bad_json/1,
+         registration_write_storage_error/1]).
 
 -define(PORT, 18080).
 
 all() ->
     [ue_imsi, strip_meta, auth_view,
      listener_up, read_resources,
-     registration_write, registration_write_bad_json].
+     registration_write, registration_write_bad_json,
+     registration_write_storage_error].
 
 init_per_suite(Config) ->
-    application:set_env(udr_db, backend, udr_db_ets),
+    application:set_env(udr_db, backend, udr_db_mnesia),
+    application:set_env(udr_db, backend_opts, #{storage => ram_copies}),
+    ok = udr_db_ct:setup_mnesia_ram(),
     application:load(udr_sbi),
     application:set_env(udr_sbi, port, ?PORT),
-    {ok, Started} = application:ensure_all_started(udr_sbi),
-    {ok, _} = application:ensure_all_started(inets),
-    [{started, Started} | Config].
+    %% udr_sbi calls opentelemetry_cowboy_experimental_h:init/0 on start, which
+    %% registers histograms on the global meter provider (otel_meter_provider_global).
+    %% In a full `rebar3 ct` run the OTEL SDK may have been started and stopped by a
+    %% prior suite (e.g. udr_otel_SUITE), leaving a stale persistent_term meter entry
+    %% pointing at a dead gen_server.  Start opentelemetry_experimental here so the
+    %% provider is alive before the SBI listener registers its instruments.
+    {ok, S0} = application:ensure_all_started(opentelemetry_experimental),
+    {ok, S1} = application:ensure_all_started(udr_sbi),
+    {ok, _}  = application:ensure_all_started(inets),
+    [{started, lists:usort(S0 ++ S1)} | Config].
 
 end_per_suite(Config) ->
     Started = ?config(started, Config),
     [application:stop(A) || A <- lists:reverse(Started)],
+    udr_db_ct:teardown_mnesia(),
     ok.
 
 url(Path) -> "http://127.0.0.1:" ++ integer_to_list(?PORT) ++ Path.
@@ -127,4 +139,18 @@ registration_write_bad_json(_Config) ->
     U = "/nudr-dr/v1/subscription-data/imsi-3/context-data/amf-3gpp-access",
     {ok, {{_, 400, _}, Hdrs, _}} = req(put, U, <<"{bad json">>),
     ?assertEqual("application/problem+json", proplists:get_value("content-type", Hdrs)),
+    ok.
+
+%% A backend write failure (valid JSON body) must surface as 500, distinct from
+%% the 400 returned for a malformed body. Force the write to fail.
+registration_write_storage_error(_Config) ->
+    Restore = persistent_term:get({udr_db, backend}, udr_db_mnesia),
+    persistent_term:put({udr_db, backend}, udr_db_failing_backend),
+    try
+        U = "/nudr-dr/v1/subscription-data/imsi-001010000000099/context-data/amf-3gpp-access",
+        Body = udr_sbi_json:encode(#{<<"mme_host">> => <<"mme-x">>, <<"mme_realm">> => <<"epc">>}),
+        {ok, {{_, 500, _}, _, _}} = req(put, U, Body)
+    after
+        persistent_term:put({udr_db, backend}, Restore)
+    end,
     ok.
