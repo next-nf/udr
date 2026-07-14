@@ -1,10 +1,13 @@
 # ---- build stage: official Alpine Erlang/OTP-29 (rebar3 preinstalled) ------
 FROM erlang:29-alpine AS build
 
-# git: needed to fetch the `mongodb` and `opentelemetry_cowboy_h` git deps.
-# (rebar3 and OTP's `diameter` dict compiler, used by udr_diameter's build-time
-# pre_hook, are already in the image.)
-RUN apk add --no-cache git
+# git:        fetch the `mongodb` and `opentelemetry_cowboy_h` git deps.
+# build-base:  make + g++ for opentelemetry_process's C++ NIF, built by its
+#              `make -C c_src` compile pre_hook (links -lstdc++; the runtime
+#              stage already carries libstdc++/libgcc for it). The official image
+#              ships rebar3 and OTP's `diameter` dict compiler (udr_diameter's
+#              build-time pre_hook), but not a C toolchain.
+RUN apk add --no-cache git build-base
 
 WORKDIR /src
 COPY . .
