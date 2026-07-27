@@ -61,6 +61,13 @@
    IMEI                                       1402  UTF8String   MV
    Software-Version                           1403  UTF8String   MV
    UE-SRVCC-Capability                        1615  Unsigned32   V
+   MSISDN                                     701   OctetString  MV
+   EPS-Subscribed-QoS-Profile                 1431  Grouped      MV
+   QoS-Class-Identifier                       1028  Enumerated   MV
+   Allocation-Retention-Priority              1034  Grouped      MV
+   Priority-Level                             1046  Unsigned32   MV
+   Pre-emption-Capability                     1047  Enumerated   MV
+   Pre-emption-Vulnerability                  1048  Enumerated   MV
 
 @enum Cancellation-Type
    MME_UPDATE_PROCEDURE        0
@@ -97,6 +104,25 @@
    IPV4V6       2
    IPV4_OR_IPV6 3
 
+@enum QoS-Class-Identifier
+   QCI_1  1
+   QCI_2  2
+   QCI_3  3
+   QCI_4  4
+   QCI_5  5
+   QCI_6  6
+   QCI_7  7
+   QCI_8  8
+   QCI_9  9
+
+@enum Pre-emption-Capability
+   PRE_EMPTION_CAPABILITY_ENABLED   0
+   PRE_EMPTION_CAPABILITY_DISABLED  1
+
+@enum Pre-emption-Vulnerability
+   PRE_EMPTION_VULNERABILITY_ENABLED   0
+   PRE_EMPTION_VULNERABILITY_DISABLED  1
+
 @grouped
    Requested-EUTRAN-Authentication-Info ::= < AVP Header: 1408 10415 >
         [ Number-Of-Requested-Vectors ]
@@ -121,10 +147,20 @@
         { Max-Requested-Bandwidth-UL }
         { Max-Requested-Bandwidth-DL }
 
+   Allocation-Retention-Priority ::= < AVP Header: 1034 10415 >
+        { Priority-Level }
+        [ Pre-emption-Capability ]
+        [ Pre-emption-Vulnerability ]
+
+   EPS-Subscribed-QoS-Profile ::= < AVP Header: 1431 10415 >
+        { QoS-Class-Identifier }
+        { Allocation-Retention-Priority }
+
    APN-Configuration ::= < AVP Header: 1430 10415 >
         { Context-Identifier }
         { PDN-Type }
         { Service-Selection }
+        [ EPS-Subscribed-QoS-Profile ]
         [ AMBR ]
 
    APN-Configuration-Profile ::= < AVP Header: 1429 10415 >
@@ -134,6 +170,7 @@
 
    Subscription-Data ::= < AVP Header: 1400 10415 >
         [ Subscriber-Status ]
+        [ MSISDN ]
         [ AMBR ]
         [ APN-Configuration-Profile ]
 
