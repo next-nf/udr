@@ -220,7 +220,11 @@ remaining gaps are explicitly deferred as out-of-scope for pragmatic core.
   `initial_attach` (bit 5) booleans extracted and passed into `do_ulr/1`.
 - Skip-Subscriber-Data honoured: `do_ulr/1` returns an answer without the profile
   when the flag is set; `encode_ulr_answer/1` omits the `Subscription-Data` AVP.
-- Step 16 return Subscription-Data + 2001: `udr_hss.erl:58`; codec `:64`.
+- Step 16 return Subscription-Data + 2001: `udr_hss.erl:58`; codec `:64`. The
+  Subscription-Data carries Subscriber-Status, optional MSISDN (TBCD-encoded),
+  optional AMBR, and an APN-Configuration-Profile whose APN-Configuration carries the
+  provisioned Service-Selection (APN) and, when provisioned, an
+  EPS-Subscribed-QoS-Profile (QCI + ARP) — `udr_diameter_codec:subscription_data/1`.
 - Step 17 Separation Indication: hardcoded `ULA-Flags => [1]`
   (`udr_diameter_codec.erl:67`).
 - Cancel Location is suppressed toward a previous node that marked the UE purged, and
@@ -236,14 +240,16 @@ remaining gaps are explicitly deferred as out-of-scope for pragmatic core.
   Indicator flag handling; SGSN / S6d cancel branches.
 - Terminal-Information / UE-SRVCC / Active-APN / dynamic-PDN-GW storage (steps 13–14).
 - URRP clearing (step 12); last-known-location deletion.
-- Full Subscription-Data (currently minimal: Subscriber-Status + optional AMBR + one
-  APN config); Supported-Features; Error-Diagnostic; SMS-in-MME registration and the
-  ULA "MME Registered for SMS" flag.
+- Remaining Subscription-Data fields not yet emitted: Access-Restriction-Data,
+  Network-Access-Mode, Subscribed-Periodic-RAU-TAU-Timer, per-APN AMBR, and multiple
+  APN configurations (one APN config is returned). Supported-Features; Error-Diagnostic;
+  SMS-in-MME registration and the ULA "MME Registered for SMS" flag.
 
 **Tests:** `apps/udr_hss/test/udr_hss_ulr_SUITE.erl` (`ulr_new_mme_emits_cancel_location`,
 `ulr_initial_attach_uses_initial_attach_cancellation`, `ulr_skip_subscriber_data_omits_profile`),
 `apps/udr_diameter/test/udr_diameter_codec_SUITE.erl` (`clr_request`, `clr_roundtrip`,
-`ulr_decode`, `ulr_decode_flags`, `encode_ulr_answer_skip`),
+`ulr_decode`, `ulr_decode_flags`, `encode_ulr_answer_skip`, `ula_returns_msisdn`,
+`ula_returns_provisioned_apn`, `ula_returns_qos_profile`),
 `apps/udr_diameter/test/udr_diameter_SUITE.erl` (`ulr_then_clr` — asserts
 Cancellation-Type 0 on the wire via `udr_diameter_test_mme:recorded_clr/1`),
 `apps/udr_hss/test/udr_hss_dist_SUITE.erl`.

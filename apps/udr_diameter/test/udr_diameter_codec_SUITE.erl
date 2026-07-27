@@ -34,6 +34,8 @@
          encode_ulr_answer/1, encode_ulr_answer_skip/1, encode_pua_answer/1,
          encode_pua_answer_freeze/1, clr_request/1, idr_request/1,
          ula_roundtrip/1, clr_roundtrip/1, aia_answer_roundtrip/1,
+         ula_returns_msisdn/1, ula_returns_provisioned_apn/1,
+         ula_returns_qos_profile/1,
          nor_roundtrip/1, noa_roundtrip/1,
          nor_decode/1, nor_decode_no_ti/1, encode_noa_answer/1,
          encode_noa_unknown_serving_node/1,
@@ -49,6 +51,7 @@ all() ->
      encode_ulr_answer, encode_ulr_answer_skip, encode_pua_answer,
      encode_pua_answer_freeze, clr_request, idr_request,
      ula_roundtrip, clr_roundtrip, aia_answer_roundtrip,
+     ula_returns_msisdn, ula_returns_provisioned_apn, ula_returns_qos_profile,
      nor_roundtrip, noa_roundtrip,
      nor_decode, nor_decode_no_ti, encode_noa_answer,
      encode_noa_unknown_serving_node,
@@ -210,6 +213,58 @@ ula_roundtrip(_Config) ->
     [SD] = maps:get('Subscription-Data', Decoded),
     [#{'Max-Requested-Bandwidth-UL' := 1000}] = maps:get('AMBR', SD),
     [#{'Context-Identifier' := 7}] = maps:get('APN-Configuration-Profile', SD),
+    ok.
+
+%% Fixture representing a fully-provisioned subscriber whose ULA a typical MME
+%% expects: MSISDN, subscribed AMBR, and a default APN with QCI + ARP. Values are
+%% synthetic (documentation-only MSISDN; QCI_9 / ARP priority 1 / pre-emption
+%% capability DISABLED(1) / vulnerability ENABLED(0)).
+rich_profile() ->
+    #{<<"msisdn">> => <<"12345678901">>,
+      <<"ambr">>   => #{<<"ul">> => 100000, <<"dl">> => 100000},
+      <<"apn_config_profile">> =>
+          #{<<"context_id">> => 1,
+            <<"apn">>        => <<"apn1">>,
+            <<"qos">>        => #{<<"qci">> => 9,
+                                  <<"arp">> => #{<<"priority_level">>             => 1,
+                                                 <<"pre_emption_capability">>    => 1,
+                                                 <<"pre_emption_vulnerability">> => 0}}}}.
+
+ula_decoded_sd(Profile) ->
+    Ans = udr_diameter_codec:encode_ulr_answer({ok, #{subscription_data => Profile}}),
+    [SD] = maps:get('Subscription-Data', roundtrip('ULA', Ans)),
+    SD.
+
+ula_decoded_apn(Profile) ->
+    SD = ula_decoded_sd(Profile),
+    [Prof] = maps:get('APN-Configuration-Profile', SD),
+    [Apn] = maps:get('APN-Configuration', Prof),
+    Apn.
+
+ula_returns_msisdn(_Config) ->
+    %% MSISDN is TBCD-encoded per TS 23.008: digits are nibble-swapped in pairs and an
+    %% odd trailing digit is padded with 0xF, so "12345678901" -> 21 43 65 87 09 f1.
+    SD = ula_decoded_sd(rich_profile()),
+    ?assertEqual([<<16#21, 16#43, 16#65, 16#87, 16#09, 16#f1>>],
+                 maps:get('MSISDN', SD)),
+    ok.
+
+ula_returns_provisioned_apn(_Config) ->
+    %% Service-Selection carries the subscriber's provisioned APN, not a hardcoded default.
+    Apn = ula_decoded_apn(rich_profile()),
+    ?assertEqual(<<"apn1">>, maps:get('Service-Selection', Apn)),
+    ok.
+
+ula_returns_qos_profile(_Config) ->
+    %% APN-Configuration carries EPS-Subscribed-QoS-Profile (QCI + ARP) so the MME
+    %% can set up the default bearer.
+    Apn = ula_decoded_apn(rich_profile()),
+    [Qos] = maps:get('EPS-Subscribed-QoS-Profile', Apn),
+    ?assertEqual(9, maps:get('QoS-Class-Identifier', Qos)),
+    Arp = maps:get('Allocation-Retention-Priority', Qos),
+    ?assertEqual(1, maps:get('Priority-Level', Arp)),
+    ?assertEqual([1], maps:get('Pre-emption-Capability', Arp)),     %% DISABLED
+    ?assertEqual([0], maps:get('Pre-emption-Vulnerability', Arp)),  %% ENABLED
     ok.
 
 clr_roundtrip(_Config) ->

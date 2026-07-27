@@ -175,9 +175,14 @@ experimental(Code) ->
 eutran_vector(I, #{rand := R, xres := X, autn := A, kasme := K}) ->
     #{'Item-Number' => [I], 'RAND' => R, 'XRES' => X, 'AUTN' => A, 'KASME' => K}.
 
-%% Minimal Subscription-Data (M1): Subscriber-Status, AMBR, APN-Configuration-Profile.
+%% Subscription-Data: Subscriber-Status, optional MSISDN, optional AMBR, and an
+%% APN-Configuration-Profile whose APN-Configuration carries the subscriber's real
+%% Service-Selection (APN) and EPS-Subscribed-QoS-Profile (QCI + ARP) when
+%% provisioned. Absent fields are simply omitted, so a minimal stored profile still
+%% yields a valid (thinner) answer.
 subscription_data(Profile) ->
-    Base = #{'Subscriber-Status' => [?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED']},
+    Base = with_msisdn(#{'Subscriber-Status' =>
+                             [?'S6A_SUBSCRIBER-STATUS_SERVICE_GRANTED']}, Profile),
     WithAmbr =
         case maps:get(<<"ambr">>, Profile, undefined) of
             #{<<"ul">> := Ul, <<"dl">> := Dl} ->
@@ -186,16 +191,63 @@ subscription_data(Profile) ->
             _ -> Base
         end,
     case maps:get(<<"apn_config_profile">>, Profile, undefined) of
-        #{<<"context_id">> := Ctx} ->
-            Apn = #{'Context-Identifier' => Ctx, 'PDN-Type' => ?'S6A_PDN-TYPE_IPV4',
-                    'Service-Selection' => <<"default">>},
+        #{<<"context_id">> := Ctx} = ApnCfg ->
             WithAmbr#{'APN-Configuration-Profile' =>
                           [#{'Context-Identifier' => Ctx,
                              'All-APN-Configurations-Included-Indicator' =>
                                  [?'S6A_ALL-APN-CONFIGURATIONS-INCLUDED-INDICATOR_ALL_APN_CONFIGURATIONS_INCLUDED'],
-                             'APN-Configuration' => [Apn]}]};
+                             'APN-Configuration' => [apn_configuration(Ctx, ApnCfg)]}]};
         _ -> WithAmbr
     end.
+
+%% One APN-Configuration: Service-Selection is the provisioned APN (falling back to
+%% "default"); EPS-Subscribed-QoS-Profile (QCI + ARP) is added when a `qos` block is
+%% provisioned so the MME can establish the default bearer.
+apn_configuration(Ctx, ApnCfg) ->
+    Apn = #{'Context-Identifier' => Ctx,
+            'PDN-Type' => ?'S6A_PDN-TYPE_IPV4',
+            'Service-Selection' => maps:get(<<"apn">>, ApnCfg, <<"default">>)},
+    case maps:get(<<"qos">>, ApnCfg, undefined) of
+        #{<<"qci">> := Qci, <<"arp">> := Arp} ->
+            Apn#{'EPS-Subscribed-QoS-Profile' =>
+                     [#{'QoS-Class-Identifier' => Qci,
+                        'Allocation-Retention-Priority' => arp(Arp)}]};
+        _ -> Apn
+    end.
+
+%% Allocation-Retention-Priority: Priority-Level is mandatory (default 15 = lowest);
+%% pre-emption capability/vulnerability are optional and pass through as stored.
+arp(Arp) ->
+    Base = #{'Priority-Level' => maps:get(<<"priority_level">>, Arp, 15)},
+    B1 = case maps:get(<<"pre_emption_capability">>, Arp, undefined) of
+             undefined -> Base;
+             Cap       -> Base#{'Pre-emption-Capability' => [Cap]}
+         end,
+    case maps:get(<<"pre_emption_vulnerability">>, Arp, undefined) of
+        undefined -> B1;
+        Vuln      -> B1#{'Pre-emption-Vulnerability' => [Vuln]}
+    end.
+
+with_msisdn(Avps, Profile) ->
+    case maps:get(<<"msisdn">>, Profile, <<>>) of
+        <<>>   -> Avps;
+        Digits -> Avps#{'MSISDN' => [tbcd(Digits)]}
+    end.
+
+%% TBCD-encode a decimal MSISDN string (TS 23.008 / TS 29.002): digits are swapped
+%% within each octet (first digit in the low nibble); an odd trailing digit is
+%% padded with 0xF. e.g. <<"12345678901">> -> <<16#21,16#43,16#65,16#87,16#09,16#f1>>.
+tbcd(Digits) when is_binary(Digits) ->
+    tbcd(binary_to_list(Digits), <<>>).
+
+tbcd([D1, D2 | T], Acc) ->
+    tbcd(T, <<Acc/binary, (nibble(D2)):4, (nibble(D1)):4>>);
+tbcd([D1], Acc) ->
+    <<Acc/binary, 16#F:4, (nibble(D1)):4>>;
+tbcd([], Acc) ->
+    Acc.
+
+nibble(C) when C >= $0, C =< $9 -> C - $0.
 
 enumerate(L) -> lists:zip(lists:seq(0, length(L) - 1), L).
 
